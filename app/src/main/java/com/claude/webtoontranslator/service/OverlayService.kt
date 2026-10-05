@@ -1428,9 +1428,7 @@ state = State.READY
 
     override fun onDestroy() {
 
-        tapResetHandler.removeCallbacks(
-            resetTapCountRunnable
-        )
+        holdCloseHandler.removeCallbacks(closeByHoldRunnable)
 
         removeAreaSelector()
 
