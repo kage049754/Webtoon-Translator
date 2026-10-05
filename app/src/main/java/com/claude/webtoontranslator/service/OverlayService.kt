@@ -1383,6 +1383,8 @@ state = State.READY
         textRecognitionManager.close()
 
         translationManager.close()
+        onlineTranslationManager.close()
+        geminiTranslationManager.close()
 
         serviceScope.cancel()
 
