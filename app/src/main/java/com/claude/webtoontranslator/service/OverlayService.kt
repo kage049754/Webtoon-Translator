@@ -116,6 +116,10 @@ class OverlayService : Service() {
     private var state = State.READY
 
     private var tapCount = 0
+    private var lastFrameSignature: IntArray? = null
+    private var lastFrameWidth = 0
+    private var lastFrameHeight = 0
+    private var lastOverlayItems: List<OverlayItem> = emptyList()
 
     private val tapResetHandler =
         Handler(Looper.getMainLooper())
@@ -794,11 +798,29 @@ state = State.READY
         fullBitmap: Bitmap
     ) {
 
+        val performanceMode = settingsDataStore.performanceMode.first()
+        val change = detectChangedRegion(bitmap, performanceMode)
+
+        if (change.isUnchanged && lastOverlayItems.isNotEmpty()) {
+            showOverlay(lastOverlayItems)
+            setButtonLabel("⏹")
+            state = State.SHOWING
+            return
+        }
+
+        val scanRect = change.region
+        val ocrBitmap = if (scanRect != null &&
+            (scanRect.left > 0 || scanRect.top > 0 ||
+                scanRect.right < bitmap.width || scanRect.bottom < bitmap.height)
+        ) {
+            Bitmap.createBitmap(bitmap, scanRect.left, scanRect.top, scanRect.width(), scanRect.height())
+        } else {
+            bitmap
+        }
+
         val blocks =
             withContext(Dispatchers.Default) {
-
-                textRecognitionManager
-                    .recognize(bitmap)
+                textRecognitionManager.recognize(ocrBitmap, performanceMode)
             }
 
         if (blocks.isEmpty()) {
@@ -822,8 +844,8 @@ state = State.READY
                     )
 
                 adjustedRect.offset(
-                    offsetX,
-                    offsetY
+                    offsetX + (scanRect?.left ?: 0),
+                    offsetY + (scanRect?.top ?: 0)
                 )
 
                 TextBlockResult(
@@ -838,7 +860,12 @@ state = State.READY
                 .translationMode
                 .first()
 
-        val overlayItems =
+        val changedFullRect = scanRect?.let { Rect(it).apply { offset(offsetX, offsetY) } }
+        val retained = if (changedFullRect != null) {
+            lastOverlayItems.filter { !Rect.intersects(it.box, changedFullRect) }
+        } else emptyList()
+
+        val newOverlayItems =
             if (
                 mode ==
                 "online"
@@ -862,6 +889,12 @@ state = State.READY
                     fullBitmap
                 )
             }
+
+        val overlayItems =
+            (retained + newOverlayItems)
+                .distinctBy { it.box.toString() + ":" + it.translatedText }
+
+        updateFrameCache(bitmap, overlayItems)
 
         if (
             overlayItems.isEmpty()
@@ -890,6 +923,71 @@ state = State.READY
         setButtonLabel("⏹")
 
         state = State.SHOWING
+    }
+
+    private data class ChangeResult(val isUnchanged: Boolean, val region: Rect?)
+
+    private fun detectChangedRegion(bitmap: Bitmap, performanceMode: String): ChangeResult {
+        val grid = if (performanceMode == "fast") 24 else 32
+        val signature = IntArray(grid * grid)
+        for (y in 0 until grid) {
+            val py = ((y + 0.5f) * bitmap.height / grid).toInt().coerceIn(0, bitmap.height - 1)
+            for (x in 0 until grid) {
+                val px = ((x + 0.5f) * bitmap.width / grid).toInt().coerceIn(0, bitmap.width - 1)
+                signature[y * grid + x] = bitmap.getPixel(px, py)
+            }
+        }
+        val old = lastFrameSignature
+        if (old != null && lastFrameWidth == bitmap.width && lastFrameHeight == bitmap.height && old.contentEquals(signature)) {
+            return ChangeResult(true, null)
+        }
+        if (old == null || lastFrameWidth != bitmap.width || lastFrameHeight != bitmap.height || old.size != signature.size) {
+            return ChangeResult(false, Rect(0, 0, bitmap.width, bitmap.height))
+        }
+        var minX = grid; var minY = grid; var maxX = -1; var maxY = -1; var changed = 0
+        for (i in signature.indices) {
+            val a = old[i]; val b = signature[i]
+            val distance = kotlin.math.abs(Color.red(a) - Color.red(b)) +
+                kotlin.math.abs(Color.green(a) - Color.green(b)) +
+                kotlin.math.abs(Color.blue(a) - Color.blue(b))
+            if (distance > 45) {
+                val x = i % grid; val y = i / grid
+                minX = minOf(minX, x); minY = minOf(minY, y)
+                maxX = maxOf(maxX, x); maxY = maxOf(maxY, y); changed++
+            }
+        }
+        if (changed == 0) return ChangeResult(true, null)
+        if (changed.toFloat() / signature.size >= 0.65f) {
+            return ChangeResult(false, Rect(0, 0, bitmap.width, bitmap.height))
+        }
+        val left = (maxOf(0, minX - 1) * bitmap.width / grid)
+        val top = (maxOf(0, minY - 1) * bitmap.height / grid)
+        val right = (minOf(grid, maxX + 2) * bitmap.width / grid).coerceAtMost(bitmap.width)
+        val bottom = (minOf(grid, maxY + 2) * bitmap.height / grid).coerceAtMost(bitmap.height)
+        return ChangeResult(false, Rect(left, top, maxOf(left + 1, right), maxOf(top + 1, bottom)))
+    }
+
+    private fun updateFrameCache(bitmap: Bitmap, items: List<OverlayItem>) {
+        val grid = 32
+        val signature = IntArray(grid * grid)
+        for (y in 0 until grid) {
+            val py = ((y + 0.5f) * bitmap.height / grid).toInt().coerceIn(0, bitmap.height - 1)
+            for (x in 0 until grid) {
+                val px = ((x + 0.5f) * bitmap.width / grid).toInt().coerceIn(0, bitmap.width - 1)
+                signature[y * grid + x] = bitmap.getPixel(px, py)
+            }
+        }
+        lastFrameSignature = signature
+        lastFrameWidth = bitmap.width
+        lastFrameHeight = bitmap.height
+        lastOverlayItems = items
+    }
+
+    private fun clearFrameCache() {
+        lastFrameSignature = null
+        lastFrameWidth = 0
+        lastFrameHeight = 0
+        lastOverlayItems = emptyList()
     }
 
     // =========================================================
@@ -1414,6 +1512,8 @@ state = State.READY
         }
 
         buttonView = null
+
+        clearFrameCache()
 
         captureManager?.stop()
         captureManager = null
