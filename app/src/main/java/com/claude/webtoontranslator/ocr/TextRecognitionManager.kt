@@ -54,7 +54,9 @@ class TextRecognitionManager {
 
         val cleaned = allLines
             .mapNotNull { normalize(it) }
-            .filter { it.text.replace("\\s".toRegex(), "").length >= minConfidentLength }\n            // Never send punctuation/number-only OCR to translation. These are\n            // commonly UI counters, page numbers, sound-effect marks, or noise.\n            .filter { block -> block.text.any { it.isLetter() } }
+            .filter { it.text.replace("\\s".toRegex(), "").length >= minConfidentLength }
+            // Never send punctuation/number-only OCR to translation.
+            .filter { block -> block.text.any { it.isLetter() } }
 
         val deduplicated = deduplicateOverlapping(cleaned)
         val merged = mergeNearbyLines(deduplicated)
