@@ -304,6 +304,11 @@ fun MainScreen(
     val scope =
         rememberCoroutineScope()
 
+    LaunchedEffect(Unit) {
+        // Upgrade API keys saved by older versions from plaintext to Keystore-backed ciphertext.
+        settingsDataStore.migrateGeminiApiKeyIfNeeded()
+    }
+
     val context =
     androidx.compose.ui.platform.LocalContext.current    
 
