@@ -894,7 +894,7 @@ state = State.READY
             (retained + newOverlayItems)
                 .distinctBy { it.box.toString() + ":" + it.translatedText }
 
-        updateFrameCache(bitmap, overlayItems)
+        updateFrameCache(bitmap, overlayItems, performanceMode)
 
         if (
             overlayItems.isEmpty()
@@ -967,8 +967,8 @@ state = State.READY
         return ChangeResult(false, Rect(left, top, maxOf(left + 1, right), maxOf(top + 1, bottom)))
     }
 
-    private fun updateFrameCache(bitmap: Bitmap, items: List<OverlayItem>) {
-        val grid = 32
+    private fun updateFrameCache(bitmap: Bitmap, items: List<OverlayItem>, performanceMode: String) {
+        val grid = if (performanceMode == "fast") 24 else 32
         val signature = IntArray(grid * grid)
         for (y in 0 until grid) {
             val py = ((y + 0.5f) * bitmap.height / grid).toInt().coerceIn(0, bitmap.height - 1)
