@@ -19,7 +19,8 @@ import java.util.concurrent.ConcurrentHashMap
 class TranslationManager {
 
     private val languageIdentifier = LanguageIdentification.getClient()
-    private val translators = mutableMapOf<String, Translator>()
+    private val translators = ConcurrentHashMap<String, Translator>()
+    private val modelReady = ConcurrentHashMap.newKeySet<String>()
     private val memory = ConcurrentHashMap<String, TranslationResult>()
 
     private val supportedSources = setOf(
@@ -33,15 +34,22 @@ class TranslationManager {
 
     suspend fun preDownloadModels() {
         val conditions = DownloadConditions.Builder().build()
-        for (language in supportedSources) {
-            if (language == TranslateLanguage.ENGLISH) continue
-            try {
-                getOrCreateTranslator(language)
-                    .downloadModelIfNeeded(conditions)
-                    .await()
-            } catch (_: Exception) {
-                // Model download is retried when the language is actually needed.
-            }
+        coroutineScope {
+            supportedSources
+                .filter { it != TranslateLanguage.ENGLISH }
+                .map { language ->
+                    async {
+                        try {
+                            getOrCreateTranslator(language)
+                                .downloadModelIfNeeded(conditions)
+                                .await()
+                            modelReady += language
+                        } catch (_: Exception) {
+                            // Retry lazily when this language is actually needed.
+                        }
+                    }
+                }
+                .awaitAll()
         }
     }
 
@@ -58,15 +66,16 @@ class TranslationManager {
         val cleanText = normalizeText(text)
         if (cleanText.isBlank()) return null
 
-        val detected = try {
-            languageIdentifier.identifyLanguage(cleanText).await()
-        } catch (_: Exception) {
-            "und"
-        }
-
-        val language = mapToMlKitLanguage(detected)
-            ?: detectScriptLanguage(cleanText)
-            ?: return null
+        // Script detection is immediate and more reliable for short manga
+        // snippets. Use ML Kit language identification only for Latin text.
+        val language = detectScriptLanguage(cleanText) ?: run {
+            val detected = try {
+                languageIdentifier.identifyLanguage(cleanText).await()
+            } catch (_: Exception) {
+                "und"
+            }
+            mapToMlKitLanguage(detected)
+        } ?: return null
 
         if (language == TranslateLanguage.ENGLISH || language !in supportedSources) {
             return null
@@ -78,14 +87,15 @@ class TranslationManager {
         return try {
             val translator = getOrCreateTranslator(language)
 
-            try {
-                translator.downloadModelIfNeeded(
-                    DownloadConditions.Builder().requireWifi().build()
-                ).await()
-            } catch (_: Exception) {
-                translator.downloadModelIfNeeded(
-                    DownloadConditions.Builder().build()
-                ).await()
+            if (language !in modelReady) {
+                try {
+                    translator.downloadModelIfNeeded(
+                        DownloadConditions.Builder().build()
+                    ).await()
+                    modelReady += language
+                } catch (_: Exception) {
+                    return null
+                }
             }
 
             val translated = translator.translate(cleanText).await()
@@ -154,6 +164,7 @@ class TranslationManager {
         languageIdentifier.close()
         translators.values.forEach { it.close() }
         translators.clear()
+        modelReady.clear()
         memory.clear()
     }
 
