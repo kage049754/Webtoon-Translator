@@ -91,6 +91,9 @@ class OverlayService : Service() {
     private val onlineTranslationManager =
         OnlineTranslationManager()
 
+    private val geminiTranslationManager =
+        GeminiTranslationManager()
+
     private lateinit var settingsDataStore: SettingsDataStore
 
     private val serviceScope =
