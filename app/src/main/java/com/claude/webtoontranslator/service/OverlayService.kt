@@ -1115,13 +1115,30 @@ state = State.READY
 
             if (!results.isNullOrEmpty()) {
                 val byId = results.associateBy { it.id }
-                return blocks.mapIndexedNotNull { index, block ->
-                    val translation = byId[index]?.translatedText ?: return@mapIndexedNotNull null
-                    OverlayItem(
-                        block.boundingBox,
-                        translation,
-                        TranslationOverlayView.sampleBackgroundColor(bitmap, block.boundingBox)
+                val overlayItems = mutableListOf<OverlayItem>()
+
+                // Gemini can occasionally return a partial page. Keep every
+                // OCR bubble visible and use the free translator only for
+                // missing items instead of dropping them.
+                for ((index, block) in blocks.withIndex()) {
+                    val translation = byId[index]?.translatedText
+                        ?: onlineTranslationManager
+                            .translate(block.text, targetLang)
+                            ?.translatedText
+
+                    if (translation.isNullOrBlank()) continue
+
+                    overlayItems.add(
+                        OverlayItem(
+                            block.boundingBox,
+                            translation,
+                            TranslationOverlayView.sampleBackgroundColor(bitmap, block.boundingBox)
+                        )
                     )
+                }
+
+                if (overlayItems.isNotEmpty()) {
+                    return overlayItems
                 }
             }
         }
