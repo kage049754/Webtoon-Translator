@@ -13,6 +13,7 @@ class GeminiTranslationManager {
         private const val ENDPOINT =
             "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent"
         private const val TIMEOUT_MS = 20_000
+        private const val MAX_BLOCKS_PER_REQUEST = 20
     }
 
     data class InputBlock(val id: Int, val text: String)
@@ -26,6 +27,21 @@ class GeminiTranslationManager {
     ): List<Result>? = withContext(Dispatchers.IO) {
         val key = apiKey.trim()
         if (key.isBlank() || blocks.isEmpty()) return@withContext null
+
+        // Dense pages can produce many OCR regions. Keep each Gemini request
+        // bounded so a long chapter/page does not fail because of one oversized
+        // prompt. Results keep their original stable IDs and are merged back.
+        if (blocks.size > MAX_BLOCKS_PER_REQUEST) {
+            return@withContext blocks.chunked(MAX_BLOCKS_PER_REQUEST)
+                .flatMap { chunk ->
+                    translatePage(
+                        apiKey = key,
+                        blocks = chunk,
+                        targetLanguage = targetLanguage,
+                        seriesGlossary = seriesGlossary
+                    ) ?: emptyList()
+                }
+        }
 
         val glossaryText = if (seriesGlossary.isEmpty()) {
             "No glossary is available."
