@@ -7,238 +7,159 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 import kotlinx.coroutines.tasks.await
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Detects the source language of OCR text and translates
- * it to English using downloaded on-device ML Kit models.
+ * Offline manga translation.
  *
- * Supported offline source languages:
- * Korean
- * Japanese
- * Chinese
- * Spanish
- * French
+ * Adds script fallback for short OCR snippets and a process-local translation
+ * memory so repeated names/phrases are translated consistently during a chapter.
  */
 class TranslationManager {
 
-    private val languageIdentifier =
-        LanguageIdentification.getClient()
+    private val languageIdentifier = LanguageIdentification.getClient()
+    private val translators = mutableMapOf<String, Translator>()
+    private val memory = ConcurrentHashMap<String, TranslationResult>()
 
-    private val translators =
-        mutableMapOf<String, Translator>()
+    private val supportedSources = setOf(
+        TranslateLanguage.KOREAN,
+        TranslateLanguage.JAPANESE,
+        TranslateLanguage.CHINESE,
+        TranslateLanguage.SPANISH,
+        TranslateLanguage.FRENCH,
+        TranslateLanguage.ENGLISH
+    )
 
-    private val supportedSources =
-        setOf(
-            TranslateLanguage.KOREAN,
-            TranslateLanguage.JAPANESE,
-            TranslateLanguage.CHINESE,
-            TranslateLanguage.SPANISH,
-            TranslateLanguage.FRENCH,
-            TranslateLanguage.ENGLISH
-        )
-
-    /**
-     * Downloads all required offline translation models.
-     */
     suspend fun preDownloadModels() {
-
-        val conditions =
-            DownloadConditions
-                .Builder()
-                .build()
-
+        val conditions = DownloadConditions.Builder().build()
         for (language in supportedSources) {
-
-            if (
-                language ==
-                TranslateLanguage.ENGLISH
-            ) {
-                continue
-            }
-
+            if (language == TranslateLanguage.ENGLISH) continue
             try {
-
-                getOrCreateTranslator(
-                    language
-                )
-                    .downloadModelIfNeeded(
-                        conditions
-                    )
+                getOrCreateTranslator(language)
+                    .downloadModelIfNeeded(conditions)
                     .await()
-
             } catch (_: Exception) {
-                // Non-fatal.
+                // Model download is retried when the language is actually needed.
             }
         }
     }
 
-    private fun getOrCreateTranslator(
-        sourceLanguage: String
-    ): Translator {
-
-        return translators.getOrPut(
-            sourceLanguage
-        ) {
-
-            val options =
-                TranslatorOptions
-                    .Builder()
-                    .setSourceLanguage(
-                        sourceLanguage
-                    )
-                    .setTargetLanguage(
-                        TranslateLanguage.ENGLISH
-                    )
-                    .build()
-
-            Translation.getClient(
-                options
-            )
+    private fun getOrCreateTranslator(sourceLanguage: String): Translator =
+        translators.getOrPut(sourceLanguage) {
+            val options = TranslatorOptions.Builder()
+                .setSourceLanguage(sourceLanguage)
+                .setTargetLanguage(TranslateLanguage.ENGLISH)
+                .build()
+            Translation.getClient(options)
         }
-    }
 
-    /**
-     * Detects the language and translates
-     * the text into English.
-     */
-    suspend fun detectAndTranslate(
-        text: String
-    ): TranslationResult? {
+    suspend fun detectAndTranslate(text: String): TranslationResult? {
+        val cleanText = normalizeText(text)
+        if (cleanText.isBlank()) return null
 
-        if (text.isBlank()) {
+        val detected = try {
+            languageIdentifier.identifyLanguage(cleanText).await()
+        } catch (_: Exception) {
+            "und"
+        }
+
+        val language = mapToMlKitLanguage(detected)
+            ?: detectScriptLanguage(cleanText)
+            ?: return null
+
+        if (language == TranslateLanguage.ENGLISH || language !in supportedSources) {
             return null
         }
 
-        val languageCode =
-            try {
-
-                languageIdentifier
-                    .identifyLanguage(text)
-                    .await()
-
-            } catch (_: Exception) {
-
-                "und"
-            }
-
-        val mlKitLanguage =
-            mapToMlKitLanguage(
-                languageCode
-            ) ?: return null
-
-        /*
-         * Already English.
-         */
-        if (
-            mlKitLanguage ==
-            TranslateLanguage.ENGLISH
-        ) {
-            return null
-        }
-
-        /*
-         * Only translate languages that
-         * have offline models installed.
-         */
-        if (
-            mlKitLanguage !in
-            supportedSources
-        ) {
-            return null
-        }
+        val key = "${language}|${cleanText.lowercase(Locale.ROOT)}"
+        memory[key]?.let { return it.copy(fromMemory = true) }
 
         return try {
-
-            val translator =
-                getOrCreateTranslator(
-                    mlKitLanguage
-                )
-
-            val conditions =
-                DownloadConditions
-                    .Builder()
-                    .requireWifi()
-                    .build()
+            val translator = getOrCreateTranslator(language)
 
             try {
-
-                translator
-                    .downloadModelIfNeeded(
-                        conditions
-                    )
-                    .await()
-
+                translator.downloadModelIfNeeded(
+                    DownloadConditions.Builder().requireWifi().build()
+                ).await()
             } catch (_: Exception) {
-
-                translator
-                    .downloadModelIfNeeded(
-                        DownloadConditions
-                            .Builder()
-                            .build()
-                    )
-                    .await()
+                translator.downloadModelIfNeeded(
+                    DownloadConditions.Builder().build()
+                ).await()
             }
 
-            val translated =
-                translator
-                    .translate(text)
-                    .await()
+            val translated = translator.translate(cleanText).await()
+                .replace(Regex("\\s{2,}"), " ")
+                .trim()
 
-            TranslationResult(
-                sourceLanguage =
-                    mlKitLanguage,
-                translatedText =
-                    translated
+            if (translated.isBlank()) return null
+
+            val result = TranslationResult(
+                sourceLanguage = language,
+                translatedText = translated,
+                fromMemory = false
             )
-
+            memory[key] = result
+            result
         } catch (_: Exception) {
-
             null
         }
     }
 
-    private fun mapToMlKitLanguage(
-        languageIdCode: String
-    ): String? {
+    private fun normalizeText(text: String): String =
+        text.replace("\u0000", "")
+            .replace(Regex("[\\t\\r\\n]+"), " ")
+            .replace(Regex("\\s{2,}"), " ")
+            .trim()
 
-        return when (languageIdCode) {
+    private fun mapToMlKitLanguage(code: String): String? = when (code) {
+        "ko" -> TranslateLanguage.KOREAN
+        "ja" -> TranslateLanguage.JAPANESE
+        "zh" -> TranslateLanguage.CHINESE
+        "es" -> TranslateLanguage.SPANISH
+        "fr" -> TranslateLanguage.FRENCH
+        "en" -> TranslateLanguage.ENGLISH
+        else -> null
+    }
 
-            "ko" ->
-                TranslateLanguage.KOREAN
+    private fun detectScriptLanguage(text: String): String? {
+        var japanese = 0
+        var korean = 0
+        var chinese = 0
+        var latin = 0
 
-            "ja" ->
-                TranslateLanguage.JAPANESE
+        for (c in text) {
+            when {
+                c in '\u3040'..'\u30FF' -> japanese++
+                c in '\uAC00'..'\uD7AF' -> korean++
+                c in '\u4E00'..'\u9FFF' -> chinese++
+                c.isLetter() && c.code < 0x0250 -> latin++
+            }
+        }
 
-            "zh" ->
-                TranslateLanguage.CHINESE
-
-            "es" ->
-                TranslateLanguage.SPANISH
-
-            "fr" ->
-                TranslateLanguage.FRENCH
-
-            "en" ->
-                TranslateLanguage.ENGLISH
-
-            else ->
-                null
+        return when {
+            japanese > 0 -> TranslateLanguage.JAPANESE
+            korean > 0 -> TranslateLanguage.KOREAN
+            chinese > 0 -> TranslateLanguage.CHINESE
+            latin > 0 -> TranslateLanguage.ENGLISH
+            else -> null
         }
     }
 
+    fun clearMemory() {
+        memory.clear()
+    }
+
     fun close() {
-
         languageIdentifier.close()
-
-        translators.values.forEach {
-            it.close()
-        }
-
+        translators.values.forEach { it.close() }
         translators.clear()
+        memory.clear()
     }
 
     data class TranslationResult(
         val sourceLanguage: String,
-        val translatedText: String
+        val translatedText: String,
+        val fromMemory: Boolean = false
     )
 }
