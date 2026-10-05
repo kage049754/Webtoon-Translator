@@ -521,13 +521,29 @@ fun MainScreen(
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            settingsDataStore.setScanMode("select_area")
+                            if (!hasSavedArea) {
+                                settingsDataStore.setScanMode("select_area")
+                                Toast.makeText(
+                                    context,
+                                    "Start Overlay, then drag to select and save your scan area.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else if (scanMode == "last_selected_area") {
+                                settingsDataStore.setScanMode("whole_screen")
+                                Toast.makeText(
+                                    context,
+                                    "Full screen mode selected.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                settingsDataStore.setScanMode("last_selected_area")
+                                Toast.makeText(
+                                    context,
+                                    "Last selected scan area selected.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
-                        Toast.makeText(
-                            context,
-                            "Scan Area selected. Start the overlay, then tap the 🔍 floating button.",
-                            Toast.LENGTH_SHORT
-                        ).show()
                     },
                     modifier = Modifier
                         .weight(0.85f)
@@ -535,7 +551,11 @@ fun MainScreen(
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Text(
-                        "Scan Area",
+                        when {
+                            !hasSavedArea -> "Scan Area"
+                            scanMode == "last_selected_area" -> "Full Screen"
+                            else -> "Saved Area"
+                        },
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold
                     )
