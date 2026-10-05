@@ -1286,15 +1286,28 @@ state = State.READY
     private fun isUsableTranslation(sourceText: String, translatedText: String?): Boolean {
         val source = sourceText.trim()
         val translated = translatedText?.trim().orEmpty()
-
         if (source.isBlank() || translated.isBlank()) return false
 
-        val sourceHasLetters = source.any { it.isLetter() }
-        return if (sourceHasLetters) {
-            translated.any { it.isLetter() }
-        } else {
-            translated == source
-        }
+        val sourceLetters = source.count { it.isLetter() }
+        val translatedLetters = translated.count { it.isLetter() }
+        if (sourceLetters == 0) return false
+        if (translatedLetters == 0) return false
+
+        val normalizedSource = source.lowercase().replace(Regex("\\s+"), " ")
+        val normalizedTranslation = translated.lowercase().replace(Regex("\\s+"), " ")
+        if (normalizedSource == normalizedTranslation && source.length >= 2) return false
+
+        // Reject obvious OCR/API corruption while allowing short legitimate
+        // dialogue such as "No", "OK", or a single CJK character.
+        val symbolCount = translated.count { !it.isLetterOrDigit() && !it.isWhitespace() }
+        val symbolRatio = symbolCount.toFloat() / translated.length.coerceAtLeast(1)
+        if (symbolRatio > 0.55f) return false
+
+        // A wildly expanded result is usually an API error or malformed OCR.
+        val maxReasonableLength = (source.length * 8 + 40).coerceAtLeast(80)
+        if (translated.length > maxReasonableLength) return false
+
+        return true
     }
 
     // =========================================================
