@@ -105,14 +105,11 @@ class OnlineTranslationManager {
                     ?: return@withContext null
 
             /*
-             * If source and target are the same, preserve the OCR text instead
-             * of dropping the block.
+             * No overlay is needed when the requested language already matches
+             * the detected source language.
              */
             if (sourceLanguage == targetLanguage) {
-                return@withContext OnlineTranslationResult(
-                    detectedSourceLanguage = sourceLanguage,
-                    translatedText = cleanText
-                )
+                return@withContext null
             }
 
             val cacheKey = "${sourceLanguage}|${targetLanguage}|${cleanText.lowercase(Locale.ROOT)}"
@@ -155,6 +152,9 @@ class OnlineTranslationManager {
                     .joinToString(" ")
                     .trim()
             )
+            if (translationCache.size >= 512) {
+                translationCache.clear()
+            }
             translationCache[cacheKey] = result
             result
         }
