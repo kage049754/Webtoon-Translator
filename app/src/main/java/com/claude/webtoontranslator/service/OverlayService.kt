@@ -37,6 +37,9 @@ import com.claude.webtoontranslator.ocr.TranslationManager
 import com.claude.webtoontranslator.ocr.GeminiTranslationManager
 import com.claude.webtoontranslator.util.SettingsDataStore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
