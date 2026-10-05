@@ -143,7 +143,17 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setGeminiApiKey(value: String) {
         context.dataStore.edit {
-            it[KEY_GEMINI_API_KEY] = value.trim()
+            val trimmed = value.trim()
+            if (trimmed.isBlank()) {
+                it.remove(KEY_GEMINI_API_KEY)
+            } else {
+                val encrypted = SecureApiKeyStore.encrypt(trimmed)
+                if (encrypted.isBlank()) {
+                    it.remove(KEY_GEMINI_API_KEY)
+                } else {
+                    it[KEY_GEMINI_API_KEY] = encrypted
+                }
+            }
         }
     }
 
