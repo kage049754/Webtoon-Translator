@@ -350,6 +350,7 @@ fun MainScreen(
     var showSettings by remember { mutableStateOf(false) }
     var geminiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
     var showGeminiKey by remember { mutableStateOf(false) }
+    var showTargetLanguageMenu by remember { mutableStateOf(false) }
 
     val scanMode by
         settingsDataStore
@@ -567,258 +568,55 @@ fun MainScreen(
             )
 
             // =================================================
-            // TRANSLATION MODE
+            // SIMPLE MODE / PROVIDER
             // =================================================
 
             Column(
-
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Color(0xFF2A2830),
-                            RoundedCornerShape(16.dp)
-                        )
-                        .padding(16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2A2830), RoundedCornerShape(16.dp))
+                    .padding(16.dp)
             ) {
-
                 Row(
-
-                    modifier =
-                        Modifier.fillMaxWidth(),
-
-                    horizontalArrangement =
-                        Arrangement.SpaceBetween,
-
-                    verticalAlignment =
-                        Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-
-                    Column(
-                        modifier =
-                            Modifier.weight(1f)
-                    ) {
-
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(if (mode == "online") "Online mode" else "Offline mode", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-
-                            if (
-                                mode == "online"
-                            )
-                                "Online mode"
-                            else
-                                "Offline mode",
-
-                            fontSize = 16.sp,
-
-                            fontWeight =
-                                FontWeight.SemiBold,
-
-                            color =
-                                MaterialTheme
-                                    .colorScheme
-                                    .onBackground
-                        )
-
-                        Text(
-
-                            if (
-                                mode == "online"
-                            )
-                                "Any language → your chosen target. Needs internet."
-                            else
-                                "Korean/Japanese/Chinese/Spanish/French → English. Works offline.",
-
-                            fontSize = 12.sp,
-
-                            color =
-                                Color(0xFF8A8391)
+                            if (mode == "online") "Uses Gemini or the free fallback." else "Uses downloaded on-device translation models.",
+                            fontSize = 12.sp, color = Color(0xFF8A8391)
                         )
                     }
-
                     Switch(
-
-                        checked =
-                            mode == "online",
-
-                        onCheckedChange = {
-                            isOnline ->
-
-                            scope.launch {
-
-                                settingsDataStore
-                                    .setTranslationMode(
-                                        if (
-                                            isOnline
-                                        )
-                                            "online"
-                                        else
-                                            "offline"
-                                    )
-                            }
+                        checked = mode == "online",
+                        onCheckedChange = { isOnline ->
+                            scope.launch { settingsDataStore.setTranslationMode(if (isOnline) "online" else "offline") }
                         },
-
-                        colors =
-                            SwitchDefaults.colors(
-                                checkedThumbColor =
-                                    Color(0xFF03DAC5)
-                            )
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF03DAC5))
                     )
                 }
-
-                if (
-                    mode == "online"
-                ) {
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(14.dp)
-                    )
-
-                    Text(
-                        "Translate to:",
-                        fontSize = 13.sp,
-                        color = Color(0xFFB0AAB8)
-                    )
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(6.dp)
-                    )
-
-                    Box {
-
-                        val currentLabel =
-                            OnlineTranslationManager
-                                .SUPPORTED_TARGET_LANGUAGES
-                                .firstOrNull {
-                                    it.first == targetLang
-                                }
-                                ?.second
-                                ?: "English"
-
-                        OutlinedButton(
-
-                            onClick = {
-                                langMenuExpanded =
-                                    true
-                            },
-
-                            modifier =
-                                Modifier.fillMaxWidth()
-                        ) {
-
-                            Text(
-                                currentLabel
-                            )
-                        }
-
-                        DropdownMenu(
-
-                            expanded =
-                                langMenuExpanded,
-
-                            onDismissRequest = {
-                                langMenuExpanded =
-                                    false
-                            }
-                        ) {
-
-                            OnlineTranslationManager
-                                .SUPPORTED_TARGET_LANGUAGES
-                                .forEach {
-                                    (code, label) ->
-
-                                    DropdownMenuItem(
-
-                                        text = {
-                                            Text(label)
-                                        },
-
-                                        onClick = {
-
-                                            langMenuExpanded =
-                                                false
-
-                                            scope.launch {
-
-                                                settingsDataStore
-                                                    .setOnlineTargetLanguage(
-                                                        code
-                                                    )
-                                            }
-                                        }
-                                    )
-                                }
-                        }
-                    }
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(10.dp)
-                    )
-
-                    Text(
-                        "Translation engine",
-                        fontSize = 13.sp,
-                        color = Color(0xFFB0AAB8)
-                    )
-
+                if (mode == "online") {
+                    Spacer(Modifier.height(12.dp))
+                    Text("Online engine", fontSize = 13.sp, color = Color(0xFFB0AAB8))
                     Spacer(Modifier.height(6.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
                             selected = onlineProvider == "mymemory",
-                            onClick = {
-                                scope.launch {
-                                    settingsDataStore.setOnlineProvider("mymemory")
-                                }
-                            },
+                            onClick = { scope.launch { settingsDataStore.setOnlineProvider("mymemory") } },
                             label = { Text("Free fallback") }
                         )
-
                         FilterChip(
                             selected = onlineProvider == "gemini",
-                            onClick = {
-                                scope.launch {
-                                    settingsDataStore.setOnlineProvider("gemini")
-                                }
-                            },
-                            label = { Text("Gemini AI") }
+                            onClick = { scope.launch { settingsDataStore.setOnlineProvider("gemini") } },
+                            label = { Text("Gemini") }
                         )
                     }
-
-                    if (onlineProvider == "gemini") {
-                        Spacer(Modifier.height(10.dp))
-                        OutlinedButton(
-                            onClick = { showSettings = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                if (geminiApiKey.isBlank())
-                                    "Set Gemini API key in Settings"
-                                else
-                                    "Gemini API key saved • Settings"
-                            )
-                        }
-                    }
-
-                    Text(
-                        "Free fallback uses MyMemory. Gemini uses your own API key.",
-                        fontSize = 11.sp,
-                        color = Color(0xFF8A8391),
-                        modifier = Modifier.padding(top = 10.dp)
-                    )
                 }
             }
 
-            Spacer(
-                modifier =
-                    Modifier.height(20.dp)
-            )
-
+            Spacer(Modifier.height(20.dp))
             if (showSettings) {
                 AlertDialog(
                     onDismissRequest = { showSettings = false },
