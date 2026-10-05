@@ -319,6 +319,16 @@ fun MainScreen(
                 initial = "en"
             )
 
+    val onlineProvider by
+        settingsDataStore
+            .onlineProvider
+            .collectAsState(initial = "mymemory")
+
+    val geminiApiKey by
+        settingsDataStore
+            .geminiApiKey
+            .collectAsState(initial = "")
+
     val scanMode by
         settingsDataStore
             .scanMode
@@ -685,13 +695,80 @@ fun MainScreen(
                     )
 
                     Text(
+                        "Translation engine",
+                        fontSize = 13.sp,
+                        color = Color(0xFFB0AAB8)
+                    )
 
-                        "Uses a free public translation service - may be slower or briefly unavailable compared to offline mode.",
+                    Spacer(Modifier.height(6.dp))
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = onlineProvider == "mymemory",
+                            onClick = {
+                                scope.launch {
+                                    settingsDataStore.setOnlineProvider("mymemory")
+                                }
+                            },
+                            label = { Text("Free fallback") }
+                        )
+
+                        FilterChip(
+                            selected = onlineProvider == "gemini",
+                            onClick = {
+                                scope.launch {
+                                    settingsDataStore.setOnlineProvider("gemini")
+                                }
+                            },
+                            label = { Text("Gemini AI") }
+                        )
+                    }
+
+                    if (onlineProvider == "gemini") {
+                        Spacer(Modifier.height(10.dp))
+
+                        var geminiKeyInput by remember(geminiApiKey) {
+                            mutableStateOf(geminiApiKey)
+                        }
+
+                        OutlinedTextField(
+                            value = geminiKeyInput,
+                            onValueChange = { geminiKeyInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = { Text("Gemini API key") },
+                            placeholder = { Text("Paste your Gemini key") }
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    settingsDataStore.setGeminiApiKey(geminiKeyInput)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Save Gemini key")
+                        }
+
+                        Text(
+                            "Gemini mode translates the whole detected page together so dialogue can use surrounding context. The key is stored only in this app's DataStore.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF8A8391),
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
+
+                    Text(
+                        "Free fallback uses MyMemory. Gemini is optional and requires your own API key.",
                         fontSize = 11.sp,
-
-                        color =
-                            Color(0xFF8A8391)
+                        color = Color(0xFF8A8391),
+                        modifier = Modifier.padding(top = 10.dp)
                     )
                 }
             }
