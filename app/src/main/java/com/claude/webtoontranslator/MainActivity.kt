@@ -23,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -467,33 +469,49 @@ fun MainScreen(
             // START BUTTON
             // =================================================
 
-            Button(
-
-                onClick =
-                    onStartOverlay,
-
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-
-                shape =
-                    RoundedCornerShape(16.dp),
-
-                colors =
-                    ButtonDefaults
-                        .buttonColors(
-                            containerColor =
-                                Color(0xFF6750A4)
-                        )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                Button(
+                    onClick = onStartOverlay,
+                    modifier = Modifier
+                        .weight(1.35f)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF6750A4)
+                    )
+                ) {
+                    Text(
+                        "Start Overlay",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
 
-                Text(
-                    "Start Overlay",
-                    fontSize = 17.sp,
-                    fontWeight =
-                        FontWeight.SemiBold
-                )
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            settingsDataStore.setScanMode("select_area")
+                        }
+                        Toast.makeText(
+                            context,
+                            "Scan Area selected. Start the overlay, then tap the 🔍 floating button.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    modifier = Modifier
+                        .weight(0.85f)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(
+                        "Scan Area",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
 
             Spacer(
@@ -752,6 +770,8 @@ fun MainScreen(
                             mutableStateOf(geminiApiKey)
                         }
 
+                        var showGeminiKey by remember { mutableStateOf(false) }
+
                         OutlinedTextField(
                             value = geminiKeyInput,
                             onValueChange = { geminiKeyInput = it },
@@ -759,7 +779,14 @@ fun MainScreen(
                             singleLine = true,
                             label = { Text("Gemini API key") },
                             placeholder = { Text("Paste your Gemini key") },
-                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+                            visualTransformation =
+                                if (showGeminiKey) VisualTransformation.None
+                                else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                TextButton(onClick = { showGeminiKey = !showGeminiKey }) {
+                                    Text(if (showGeminiKey) "Hide" else "Show")
+                                }
+                            }
                         )
 
                         Spacer(Modifier.height(8.dp))
@@ -795,7 +822,7 @@ fun MainScreen(
                         }
 
                         Text(
-                            "Gemini uses your own API key. The key is stored locally in this app's DataStore and is masked here. Do not share the key publicly.",
+                            "The key is encrypted on this phone with Android Keystore and stored as ciphertext. It is only decrypted when this app needs to use it.",
                             fontSize = 11.sp,
                             color = Color(0xFF8A8391),
                             modifier = Modifier.padding(top = 6.dp)
