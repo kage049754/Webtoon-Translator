@@ -21,6 +21,7 @@ class SettingsDataStore(private val context: Context) {
         private val KEY_AUTO_HIDE_SECONDS = intPreferencesKey("auto_hide_seconds")
         private val KEY_MODELS_DOWNLOADED = booleanPreferencesKey("models_downloaded")
         private val KEY_TRANSLATION_MODE = stringPreferencesKey("translation_mode")
+        private val KEY_PERFORMANCE_MODE = stringPreferencesKey("performance_mode")
         private val KEY_ONLINE_TARGET_LANGUAGE = stringPreferencesKey("online_target_language")
         private val KEY_ONLINE_PROVIDER = stringPreferencesKey("online_provider")
         private val KEY_GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
@@ -54,6 +55,10 @@ class SettingsDataStore(private val context: Context) {
      */
     val translationMode: Flow<String> =
         context.dataStore.data.map { it[KEY_TRANSLATION_MODE] ?: "offline" }
+
+    /** fast, balanced, or quality */
+    val performanceMode: Flow<String> =
+        context.dataStore.data.map { it[KEY_PERFORMANCE_MODE] ?: "balanced" }
 
     /**
      * Online target language.
@@ -126,6 +131,14 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setTranslationMode(value: String) {
         context.dataStore.edit {
             it[KEY_TRANSLATION_MODE] = value
+        }
+    }
+
+    suspend fun setPerformanceMode(value: String) {
+        context.dataStore.edit {
+            it[KEY_PERFORMANCE_MODE] = value.lowercase().let {
+                if (it in setOf("fast", "balanced", "quality")) it else "balanced"
+            }
         }
     }
 
