@@ -823,14 +823,6 @@ state = State.READY
                 textRecognitionManager.recognize(ocrBitmap, performanceMode)
             }
 
-        if (blocks.isEmpty()) {
-
-            setButtonLabel("∅")
-            state = State.READY
-
-            return
-        }
-
         /*
          * Move OCR coordinates back to the
          * original full-screen coordinates.
