@@ -115,19 +115,22 @@ class OverlayService : Service() {
 
     private var state = State.READY
 
-    private var tapCount = 0
     private var lastFrameSignature: IntArray? = null
     private var lastFrameWidth = 0
     private var lastFrameHeight = 0
     private var lastOverlayItems: List<OverlayItem> = emptyList()
 
-    private val tapResetHandler =
-        Handler(Looper.getMainLooper())
-
-    private val resetTapCountRunnable =
-        Runnable {
-            tapCount = 0
-        }
+    private val holdCloseHandler = Handler(Looper.getMainLooper())
+    private var holdCloseTriggered = false
+    private val closeByHoldRunnable = Runnable {
+        holdCloseTriggered = true
+        Toast.makeText(
+            this,
+            "Closing Webtoon Translator",
+            Toast.LENGTH_SHORT
+        ).show()
+        stopSelf()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -430,85 +433,51 @@ state = State.READY
 
         var downX = 0f
         var downY = 0f
-
         var startX = 0
         var startY = 0
-
         var isDrag = false
 
         button.setOnTouchListener { _, event ->
-
             when (event.action) {
-
                 MotionEvent.ACTION_DOWN -> {
-
-                    downX =
-                        event.rawX
-
-                    downY =
-                        event.rawY
-
-                    startX =
-                        params.x
-
-                    startY =
-                        params.y
-
+                    downX = event.rawX
+                    downY = event.rawY
+                    startX = params.x
+                    startY = params.y
                     isDrag = false
-
+                    holdCloseTriggered = false
+                    holdCloseHandler.removeCallbacks(closeByHoldRunnable)
+                    holdCloseHandler.postDelayed(closeByHoldRunnable, 5_000L)
                     true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
+                    val dx = (event.rawX - downX).toInt()
+                    val dy = (event.rawY - downY).toInt()
 
-                    val dx =
-                        (
-                            event.rawX -
-                                downX
-                            ).toInt()
-
-                    val dy =
-                        (
-                            event.rawY -
-                                downY
-                            ).toInt()
-
-                    if (
-                        abs(dx) >
-                        CLICK_DRAG_THRESHOLD ||
-                        abs(dy) >
-                        CLICK_DRAG_THRESHOLD
-                    ) {
-
+                    if (abs(dx) > CLICK_DRAG_THRESHOLD || abs(dy) > CLICK_DRAG_THRESHOLD) {
                         isDrag = true
-
-                        params.x =
-                            startX + dx
-
-                        params.y =
-                            startY + dy
-
+                        holdCloseHandler.removeCallbacks(closeByHoldRunnable)
+                        params.x = startX + dx
+                        params.y = startY + dy
                         try {
-
-                            windowManager
-                                .updateViewLayout(
-                                    button,
-                                    params
-                                )
-
+                            windowManager.updateViewLayout(button, params)
                         } catch (_: Exception) {
                         }
                     }
-
                     true
                 }
 
                 MotionEvent.ACTION_UP -> {
-
-                    if (!isDrag) {
+                    holdCloseHandler.removeCallbacks(closeByHoldRunnable)
+                    if (!isDrag && !holdCloseTriggered) {
                         onButtonTapped()
                     }
+                    true
+                }
 
+                MotionEvent.ACTION_CANCEL -> {
+                    holdCloseHandler.removeCallbacks(closeByHoldRunnable)
                     true
                 }
 
@@ -525,66 +494,28 @@ state = State.READY
         buttonParams = params
     }
 
-   private fun onButtonTapped() {
-    tapCount++
-
-    tapResetHandler.removeCallbacksAndMessages(null)
-    tapResetHandler.postDelayed({
-        tapCount = 0
-    }, TAP_RESET_DELAY)
-
-    /*
-     * Five quick taps:
-     * Completely close the overlay service.
-     */
-    if (tapCount >= CLOSE_TAP_COUNT) {
-        Toast.makeText(
-            this,
-            "Closing Webtoon Translator",
-            Toast.LENGTH_SHORT
-        ).show()
-
-        stopSelf()
-        return
-    }
-
-    when (state) {
-
-        State.START -> {
-            /*
-             * If START is reached for any reason,
-             * immediately switch to Scan mode.
-             */
-            state = State.READY
-            setButtonLabel("🔍")
-        }
-
-        State.READY -> {
-            /*
-             * Scan immediately.
-             */
-            runCaptureAndTranslate()
-        }
-
-        State.WORKING -> {
-            /*
-             * Do nothing while OCR/
-             * translation is running.
-             */
-        }
-
-        State.SHOWING -> {
-            /*
-             * Stop/clear translation,
-             * then immediately return to Scan mode.
-             */
-            clearOverlay()
-
-            state = State.READY
+    private fun onButtonTapped() {
+        when (state) {
+            State.START -> {
+                state = State.READY
                 setButtonLabel("🔍")
+            }
+
+            State.READY -> {
+                runCaptureAndTranslate()
+            }
+
+            State.WORKING -> {
+                // Ignore taps while a scan is running.
+            }
+
+            State.SHOWING -> {
+                clearOverlay()
+                state = State.READY
+                setButtonLabel("🔍")
+            }
         }
     }
-}
 
     // =========================================================
     // CAPTURE + SCAN AREA
