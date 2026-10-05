@@ -357,7 +357,7 @@ fun MainScreen(
                 Alignment.CenterHorizontally,
 
             verticalArrangement =
-                Arrangement.Center
+                Arrangement.Top
         ) {
 
             // =================================================
@@ -423,6 +423,64 @@ fun MainScreen(
 
                 color =
                     Color(0xFFB0AAB8),
+
+                modifier =
+                    Modifier.padding(
+                        horizontal = 8.dp
+                    )
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(28.dp)
+            )
+
+            // =================================================
+            // START BUTTON
+            // =================================================
+
+            Button(
+
+                onClick =
+                    onStartOverlay,
+
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+
+                shape =
+                    RoundedCornerShape(16.dp),
+
+                colors =
+                    ButtonDefaults
+                        .buttonColors(
+                            containerColor =
+                                Color(0xFF6750A4)
+                        )
+            ) {
+
+                Text(
+                    "Start Overlay",
+                    fontSize = 17.sp,
+                    fontWeight =
+                        FontWeight.SemiBold
+                )
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(12.dp)
+            )
+
+            Text(
+
+                "The floating button and translations only appear over other apps after you grant the required permissions.",
+
+                fontSize = 12.sp,
+
+                color =
+                    Color(0xFF8A8391),
 
                 modifier =
                     Modifier.padding(
@@ -879,58 +937,6 @@ fun MainScreen(
                     Modifier.height(40.dp)
             )
 
-            // =================================================
-            // START BUTTON
-            // =================================================
-
-            Button(
-
-                onClick =
-                    onStartOverlay,
-
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-
-                shape =
-                    RoundedCornerShape(16.dp),
-
-                colors =
-                    ButtonDefaults
-                        .buttonColors(
-                            containerColor =
-                                Color(0xFF6750A4)
-                        )
-            ) {
-
-                Text(
-                    "Start Overlay",
-                    fontSize = 17.sp,
-                    fontWeight =
-                        FontWeight.SemiBold
-                )
-            }
-
-            Spacer(
-                modifier =
-                    Modifier.height(12.dp)
-            )
-
-            Text(
-
-                "The floating button and translations only appear over other apps after you grant the required permissions.",
-
-                fontSize = 12.sp,
-
-                color =
-                    Color(0xFF8A8391),
-
-                modifier =
-                    Modifier.padding(
-                        horizontal = 8.dp
-                    )
-            )
         }
     }
 }
