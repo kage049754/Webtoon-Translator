@@ -9,7 +9,7 @@ import java.net.URL
 
 class GeminiTranslationManager {
     companion object {
-        private const val MODEL = "gemini-3.6-flash"
+        private const val MODEL = "gemini-3.8-flash"
         private const val ENDPOINT =
             "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent"
         private const val TIMEOUT_MS = 20_000
@@ -114,11 +114,17 @@ class GeminiTranslationManager {
                 ?.trim()
                 ?: return@withContext null
 
-            val jsonText = text
+            // Defensively extract the JSON array if the model adds markdown or commentary.
+            val cleaned = text
                 .removePrefix("```json")
                 .removePrefix("```")
                 .trim()
 
+            val jsonStart = cleaned.indexOf('[')
+            val jsonEnd = cleaned.lastIndexOf(']')
+            if (jsonStart < 0 || jsonEnd <= jsonStart) return@withContext null
+
+            val jsonText = cleaned.substring(jsonStart, jsonEnd + 1)
             val array = JSONArray(jsonText)
             buildList {
                 for (i in 0 until array.length()) {
