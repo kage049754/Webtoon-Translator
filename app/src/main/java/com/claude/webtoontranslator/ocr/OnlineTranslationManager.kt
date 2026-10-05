@@ -369,120 +369,81 @@ class OnlineTranslationManager {
         targetLanguage: String
     ): String? {
 
-        var connection: HttpURLConnection? = null
+        val encodedText =
+            URLEncoder.encode(
+                text,
+                StandardCharsets.UTF_8.name()
+            )
 
-        return try {
+        val languagePair =
+            "$sourceLanguage|$targetLanguage"
 
-            val encodedText =
-                URLEncoder.encode(
-                    text,
-                    StandardCharsets.UTF_8.name()
-                )
+        val encodedLanguagePair =
+            URLEncoder.encode(
+                languagePair,
+                StandardCharsets.UTF_8.name()
+            )
 
-            val languagePair =
-                "$sourceLanguage|$targetLanguage"
+        val requestUrl =
+            "$ENDPOINT" +
+                "?q=$encodedText" +
+                "&langpair=$encodedLanguagePair" +
+                "&mt=1"
 
-            val encodedLanguagePair =
-                URLEncoder.encode(
-                    languagePair,
-                    StandardCharsets.UTF_8.name()
-                )
+        repeat(3) { attempt ->
+            var connection: HttpURLConnection? = null
 
-            val requestUrl =
-                "$ENDPOINT" +
-                    "?q=$encodedText" +
-                    "&langpair=$encodedLanguagePair" +
-                    "&mt=1"
-
-            val url =
-                URL(requestUrl)
-
-            connection =
-                (url.openConnection() as HttpURLConnection).apply {
-
-                    requestMethod = "GET"
-
-                    connectTimeout =
-                        TIMEOUT_MS
-
-                    readTimeout =
-                        TIMEOUT_MS
-
-                    useCaches = false
-
-                    setRequestProperty(
-                        "Accept",
-                        "application/json"
-                    )
-
-                    setRequestProperty(
-                        "User-Agent",
-                        "WebtoonTranslator/1.0"
-                    )
-                }
-
-            val responseCode =
-                connection.responseCode
-
-            if (responseCode !in 200..299) {
-                return null
-            }
-
-            val response =
-                connection
-                    .inputStream
-                    .bufferedReader(
-                        StandardCharsets.UTF_8
-                    )
-                    .use {
-                        it.readText()
+            try {
+                connection =
+                    (URL(requestUrl).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = TIMEOUT_MS
+                        readTimeout = TIMEOUT_MS
+                        useCaches = false
+                        setRequestProperty("Accept", "application/json")
+                        setRequestProperty("User-Agent", "WebtoonTranslator/1.0")
                     }
 
-            if (response.isBlank()) {
-                return null
+                val responseCode = connection.responseCode
+
+                if (responseCode in 200..299) {
+                    val response =
+                        connection.inputStream
+                            .bufferedReader(StandardCharsets.UTF_8)
+                            .use { it.readText() }
+
+                    if (response.isBlank()) return null
+
+                    val json = JSONObject(response)
+                    if (json.optInt("responseStatus", 0) != 200) return null
+
+                    val translated =
+                        json.optJSONObject("responseData")
+                            ?.optString("translatedText", "")
+                            ?.trim()
+
+                    return if (!translated.isNullOrBlank()) translated else null
+                }
+
+                // Retry only transient failures such as rate limiting or server errors.
+                val retryable =
+                    responseCode == 408 ||
+                        responseCode == 429 ||
+                        responseCode >= 500
+
+                if (!retryable) return null
+            } catch (_: Exception) {
+                // Network interruptions are transient; retry a small bounded number of times.
+            } finally {
+                connection?.disconnect()
             }
 
-            val json =
-                JSONObject(response)
-
-            val status =
-                json.optInt(
-                    "responseStatus",
-                    0
-                )
-
-            if (status != 200) {
-                return null
+            if (attempt < 2) {
+                Thread.sleep(350L * (attempt + 1))
             }
-
-            val responseData =
-                json.optJSONObject(
-                    "responseData"
-                )
-                    ?: return null
-
-            val translated =
-                responseData
-                    .optString(
-                        "translatedText",
-                        ""
-                    )
-                    .trim()
-
-            if (translated.isBlank()) {
-                null
-            } else {
-                translated
-            }
-
-        } catch (_: Exception) {
-
-            null
-
-        } finally {
-
-            connection?.disconnect()
         }
+
+        return null
     }
 
     /**
