@@ -2,6 +2,9 @@ package com.claude.webtoontranslator.ocr
 
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -128,22 +131,22 @@ class OnlineTranslationManager {
                 return@withContext null
             }
 
-            val translatedParts = mutableListOf<String>()
+            // Independent chunks can be translated concurrently. Keep the
+            // concurrency small enough to avoid hammering the public endpoint.
+            val translatedParts = coroutineScope {
+                chunks.map { chunk ->
+                    async(Dispatchers.IO) {
+                        translateChunk(
+                            text = chunk,
+                            sourceLanguage = sourceLanguage,
+                            targetLanguage = targetLanguage
+                        )
+                    }
+                }.awaitAll()
+            }
 
-            for (chunk in chunks) {
-
-                val translated =
-                    translateChunk(
-                        text = chunk,
-                        sourceLanguage = sourceLanguage,
-                        targetLanguage = targetLanguage
-                    )
-
-                if (translated.isNullOrBlank()) {
-                    return@withContext null
-                }
-
-                translatedParts += translated
+            if (translatedParts.any { it.isNullOrBlank() }) {
+                return@withContext null
             }
 
             val result = OnlineTranslationResult(
