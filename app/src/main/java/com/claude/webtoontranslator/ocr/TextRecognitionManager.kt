@@ -39,15 +39,15 @@ class TextRecognitionManager {
     )
 
     private val minConfidentLength = 1
+    @Volatile private var preferredScript: String? = null
 
     suspend fun recognize(bitmap: Bitmap): List<TextBlockResult> {
         val image = InputImage.fromBitmap(bitmap, 0)
         val allLines = mutableListOf<TextBlockResult>()
 
-        // Script recognizers are independent. Run them concurrently so OCR
-        // latency is close to the slowest recognizer, not the sum of all four.
+        val selected = selectRecognizers()
         coroutineScope {
-            recognizers.map { (_, recognizer) ->
+            selected.map { (_, recognizer) ->
                 async {
                     try {
                         extractLines(recognizer.process(image).await())
@@ -70,6 +70,7 @@ class TextRecognitionManager {
 
         val deduplicated = deduplicateOverlapping(cleaned)
         val merged = mergeNearbyLines(deduplicated)
+        updatePreferredScript(merged)
 
         // Manga: right-to-left within the same vertical band, then top-to-bottom.
         return merged.sortedWith(
@@ -145,6 +146,30 @@ class TextRecognitionManager {
 
     private fun hasMeaningfulLetters(text: String): Boolean =
         text.any { it.isLetter() }
+
+    private fun selectRecognizers(): List<Pair<String, TextRecognizer>> {
+        val preferred = preferredScript
+        if (preferred == null) return recognizers
+        val preferredRecognizer = recognizers.firstOrNull { it.first == preferred }
+        val latin = recognizers.firstOrNull { it.first == "latin" }
+        return listOfNotNull(preferredRecognizer, latin).distinctBy { it.first }
+    }
+
+    private fun updatePreferredScript(blocks: List<TextBlockResult>) {
+        if (blocks.isEmpty()) return
+        val counts = mutableMapOf("japanese" to 0, "korean" to 0, "chinese" to 0, "latin" to 0)
+        for (block in blocks) {
+            for (c in block.text) {
+                when {
+                    c in '぀'..'ヿ' -> counts["japanese"] = counts.getValue("japanese") + 1
+                    c in '가'..'힯' -> counts["korean"] = counts.getValue("korean") + 1
+                    c in '一'..'鿿' -> counts["chinese"] = counts.getValue("chinese") + 1
+                    c.isLetter() -> counts["latin"] = counts.getValue("latin") + 1
+                }
+            }
+        }
+        preferredScript = counts.maxByOrNull { it.value }?.key
+    }
 
     private fun containsTargetScript(text: String): Boolean =
         text.any {
