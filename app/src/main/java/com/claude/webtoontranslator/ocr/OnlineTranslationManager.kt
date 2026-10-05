@@ -9,6 +9,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 class OnlineTranslationManager {
 
@@ -47,6 +49,9 @@ class OnlineTranslationManager {
 
     private val languageIdentifier =
         LanguageIdentification.getClient()
+
+    // Re-scanning the same webtoon frame should not hit the public endpoint again.
+    private val translationCache = ConcurrentHashMap<String, OnlineTranslationResult>()
 
     data class OnlineTranslationResult(
         val detectedSourceLanguage: String?,
@@ -100,11 +105,18 @@ class OnlineTranslationManager {
                     ?: return@withContext null
 
             /*
-             * Don't translate if source and target are the same.
+             * If source and target are the same, preserve the OCR text instead
+             * of dropping the block.
              */
             if (sourceLanguage == targetLanguage) {
-                return@withContext null
+                return@withContext OnlineTranslationResult(
+                    detectedSourceLanguage = sourceLanguage,
+                    translatedText = cleanText
+                )
             }
+
+            val cacheKey = "${sourceLanguage}|${targetLanguage}|${cleanText.lowercase(Locale.ROOT)}"
+            translationCache[cacheKey]?.let { return@withContext it }
 
             /*
              * MyMemory has a byte limit, so split large OCR results.
@@ -137,12 +149,14 @@ class OnlineTranslationManager {
                 translatedParts += translated
             }
 
-            OnlineTranslationResult(
+            val result = OnlineTranslationResult(
                 detectedSourceLanguage = sourceLanguage,
                 translatedText = translatedParts
                     .joinToString(" ")
                     .trim()
             )
+            translationCache[cacheKey] = result
+            result
         }
 
     /**
@@ -477,5 +491,6 @@ class OnlineTranslationManager {
     fun close() {
 
         languageIdentifier.close()
+        translationCache.clear()
     }
 }
