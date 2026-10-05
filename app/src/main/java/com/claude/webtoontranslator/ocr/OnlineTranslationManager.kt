@@ -14,6 +14,7 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
 
 class OnlineTranslationManager {
 
@@ -26,6 +27,7 @@ class OnlineTranslationManager {
         // MyMemory documents a 500-byte limit for the q parameter.
         // Keep a safety margin.
         private const val MAX_QUERY_BYTES = 450
+        private const val MAX_CONCURRENT_REQUESTS = 3
 
         val SUPPORTED_TARGET_LANGUAGES: List<Pair<String, String>> =
             listOf(
@@ -55,6 +57,7 @@ class OnlineTranslationManager {
 
     // Re-scanning the same webtoon frame should not hit the public endpoint again.
     private val translationCache = ConcurrentHashMap<String, OnlineTranslationResult>()
+    private val requestSlots = Semaphore(MAX_CONCURRENT_REQUESTS, true)
 
     data class OnlineTranslationResult(
         val detectedSourceLanguage: String?,
@@ -136,11 +139,16 @@ class OnlineTranslationManager {
             val translatedParts = coroutineScope {
                 chunks.map { chunk ->
                     async(Dispatchers.IO) {
-                        translateChunk(
-                            text = chunk,
-                            sourceLanguage = sourceLanguage,
-                            targetLanguage = targetLanguage
-                        )
+                        requestSlots.acquire()
+                        try {
+                            translateChunk(
+                                text = chunk,
+                                sourceLanguage = sourceLanguage,
+                                targetLanguage = targetLanguage
+                            )
+                        } finally {
+                            requestSlots.release()
+                        }
                     }
                 }.awaitAll()
             }
@@ -156,7 +164,8 @@ class OnlineTranslationManager {
                     .trim()
             )
             if (translationCache.size >= 512) {
-                translationCache.clear()
+                val oldestKey = translationCache.keys.firstOrNull()
+                if (oldestKey != null) translationCache.remove(oldestKey)
             }
             translationCache[cacheKey] = result
             result
