@@ -22,6 +22,8 @@ class SettingsDataStore(private val context: Context) {
         private val KEY_MODELS_DOWNLOADED = booleanPreferencesKey("models_downloaded")
         private val KEY_TRANSLATION_MODE = stringPreferencesKey("translation_mode")
         private val KEY_ONLINE_TARGET_LANGUAGE = stringPreferencesKey("online_target_language")
+        private val KEY_ONLINE_PROVIDER = stringPreferencesKey("online_provider")
+        private val KEY_GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
 
         // Scan area settings
         private val KEY_SCAN_MODE = stringPreferencesKey("scan_mode")
@@ -59,6 +61,13 @@ class SettingsDataStore(private val context: Context) {
      */
     val onlineTargetLanguage: Flow<String> =
         context.dataStore.data.map { it[KEY_ONLINE_TARGET_LANGUAGE] ?: "en" }
+
+    /** "mymemory" or "gemini" */
+    val onlineProvider: Flow<String> =
+        context.dataStore.data.map { it[KEY_ONLINE_PROVIDER] ?: "mymemory" }
+
+    val geminiApiKey: Flow<String> =
+        context.dataStore.data.map { it[KEY_GEMINI_API_KEY] ?: "" }
 
     /**
      * Scan mode:
@@ -120,9 +129,21 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
-    suspend fun setOnlineTargetLanguage(value: String) {
+     suspend fun setOnlineTargetLanguage(value: String) {
         context.dataStore.edit {
             it[KEY_ONLINE_TARGET_LANGUAGE] = value
+        }
+    }
+
+    suspend fun setOnlineProvider(value: String) {
+        context.dataStore.edit {
+            it[KEY_ONLINE_PROVIDER] = value
+        }
+    }
+
+    suspend fun setGeminiApiKey(value: String) {
+        context.dataStore.edit {
+            it[KEY_GEMINI_API_KEY] = value.trim()
         }
     }
 
