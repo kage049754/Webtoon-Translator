@@ -10,6 +10,9 @@ import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import kotlin.math.abs
 
@@ -41,19 +44,28 @@ class TextRecognitionManager {
         val image = InputImage.fromBitmap(bitmap, 0)
         val allLines = mutableListOf<TextBlockResult>()
 
-        for ((_, recognizer) in recognizers) {
-            try {
-                val result = recognizer.process(image).await()
-                allLines += extractLines(result)
-            } catch (_: Exception) {
-                // One failed script recognizer must not prevent other scripts.
-            }
+        // Script recognizers are independent. Run them concurrently so OCR
+        // latency is close to the slowest recognizer, not the sum of all four.
+        coroutineScope {
+            recognizers.map { (_, recognizer) ->
+                async {
+                    try {
+                        extractLines(recognizer.process(image).await())
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+            }.awaitAll().forEach { allLines += it }
         }
 
         if (allLines.isEmpty()) return emptyList()
 
         val cleaned = allLines
             .mapNotNull { normalize(it) }
+            // OCR sometimes returns random punctuation/digits/box artifacts.
+            // They are not translatable dialogue, so never send them to a
+            // translator or draw an overlay for them.
+            .filter { hasMeaningfulLetters(it.text) }
             .filter { it.text.replace("\\s".toRegex(), "").length >= minConfidentLength }
 
         val deduplicated = deduplicateOverlapping(cleaned)
@@ -130,6 +142,9 @@ class TextRecognitionManager {
             else -> a.text
         }
     }
+
+    private fun hasMeaningfulLetters(text: String): Boolean =
+        text.any { it.isLetter() }
 
     private fun containsTargetScript(text: String): Boolean =
         text.any {
