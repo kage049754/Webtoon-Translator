@@ -34,6 +34,7 @@ import com.claude.webtoontranslator.ocr.OnlineTranslationManager
 import com.claude.webtoontranslator.ocr.TextBlockResult
 import com.claude.webtoontranslator.ocr.TextRecognitionManager
 import com.claude.webtoontranslator.ocr.TranslationManager
+import com.claude.webtoontranslator.ocr.GeminiTranslationManager
 import com.claude.webtoontranslator.util.SettingsDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -1090,35 +1091,50 @@ state = State.READY
         targetLang: String
     ): List<OverlayItem> {
 
-        val overlayItems =
-            mutableListOf<OverlayItem>()
+        val provider =
+            try { settingsDataStore.onlineProvider.first() } catch (_: Exception) { "mymemory" }
 
+        if (provider == "gemini") {
+            val apiKey =
+                try { settingsDataStore.geminiApiKey.first() } catch (_: Exception) { "" }
+
+            val geminiBlocks =
+                blocks.mapIndexed { index, block ->
+                    GeminiTranslationManager.InputBlock(index, block.text)
+                }
+
+            val results =
+                geminiTranslationManager.translatePage(
+                    apiKey = apiKey,
+                    blocks = geminiBlocks,
+                    targetLanguage = targetLang
+                )
+
+            if (!results.isNullOrEmpty()) {
+                val byId = results.associateBy { it.id }
+                return blocks.mapIndexedNotNull { index, block ->
+                    val translation = byId[index]?.translatedText ?: return@mapIndexedNotNull null
+                    OverlayItem(
+                        block.boundingBox,
+                        translation,
+                        TranslationOverlayView.sampleBackgroundColor(bitmap, block.boundingBox)
+                    )
+                }
+            }
+        }
+
+        // Reliable no-key fallback: translate each OCR block with MyMemory.
+        val overlayItems = mutableListOf<OverlayItem>()
         for (block in blocks) {
-
-            val result =
-                onlineTranslationManager
-                    .translate(
-                        block.text,
-                        targetLang
-                    )
-                    ?: continue
-
-            val bgColor =
-                TranslationOverlayView
-                    .sampleBackgroundColor(
-                        bitmap,
-                        block.boundingBox
-                    )
-
+            val result = onlineTranslationManager.translate(block.text, targetLang) ?: continue
             overlayItems.add(
                 OverlayItem(
                     block.boundingBox,
                     result.translatedText,
-                    bgColor
+                    TranslationOverlayView.sampleBackgroundColor(bitmap, block.boundingBox)
                 )
             )
         }
-
         return overlayItems
     }
 
