@@ -67,7 +67,7 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.data.map { it[KEY_ONLINE_PROVIDER] ?: "mymemory" }
 
     val geminiApiKey: Flow<String> =
-        context.dataStore.data.map { it[KEY_GEMINI_API_KEY] ?: "" }
+        context.dataStore.data.map { SecureApiKeyStore.decrypt(it[KEY_GEMINI_API_KEY] ?: "") }
 
     /**
      * Scan mode:
