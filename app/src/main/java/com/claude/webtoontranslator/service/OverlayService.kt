@@ -1065,6 +1065,8 @@ state = State.READY
                     )
                     ?: continue
 
+            if (!isUsableTranslation(block.text, result.translatedText)) continue
+
             val bgColor =
                 TranslationOverlayView
                     .sampleBackgroundColor(
@@ -1121,10 +1123,16 @@ state = State.READY
                 // OCR bubble visible and use the free translator only for
                 // missing items instead of dropping them.
                 for ((index, block) in blocks.withIndex()) {
-                    val translation = byId[index]?.translatedText
-                        ?: onlineTranslationManager
-                            .translate(block.text, targetLang)
-                            ?.translatedText
+                    val geminiTranslation = byId[index]?.translatedText
+                    val translation =
+                        if (isUsableTranslation(block.text, geminiTranslation)) {
+                            geminiTranslation
+                        } else {
+                            onlineTranslationManager
+                                .translate(block.text, targetLang)
+                                ?.translatedText
+                                ?.takeIf { isUsableTranslation(block.text, it) }
+                        }
 
                     if (translation.isNullOrBlank()) continue
 
@@ -1147,6 +1155,7 @@ state = State.READY
         val overlayItems = mutableListOf<OverlayItem>()
         for (block in blocks) {
             val result = onlineTranslationManager.translate(block.text, targetLang) ?: continue
+            if (!isUsableTranslation(block.text, result.translatedText)) continue
             overlayItems.add(
                 OverlayItem(
                     block.boundingBox,
@@ -1156,6 +1165,28 @@ state = State.READY
             )
         }
         return overlayItems
+    }
+
+    /**
+     * Reject obviously corrupted translations.
+     *
+     * The OCR source may legitimately contain digits or symbols. The important
+     * check is the returned translation: when the source contains letters, the
+     * replacement must also contain real letters. For non-text source content,
+     * only an unchanged value is considered safe.
+     */
+    private fun isUsableTranslation(sourceText: String, translatedText: String?): Boolean {
+        val source = sourceText.trim()
+        val translated = translatedText?.trim().orEmpty()
+
+        if (source.isBlank() || translated.isBlank()) return false
+
+        val sourceHasLetters = source.any { it.isLetter() }
+        return if (sourceHasLetters) {
+            translated.any { it.isLetter() }
+        } else {
+            translated == source
+        }
     }
 
     // =========================================================
