@@ -347,6 +347,9 @@ fun MainScreen(
             .modelsDownloaded
             .collectAsState(initial = false)
     var downloadingModels by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var geminiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
+    var showGeminiKey by remember { mutableStateOf(false) }
 
     val scanMode by
         settingsDataStore
@@ -420,15 +423,22 @@ fun MainScreen(
                     Modifier.height(24.dp)
             )
 
-            Text(
-                "Webtoon Translator",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color =
-                    MaterialTheme
-                        .colorScheme
-                        .onBackground
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Webtoon Translator",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { showSettings = true }) {
+                    Text("⚙", fontSize = 24.sp)
+                }
+            }
 
             Spacer(Modifier.height(6.dp))
 
@@ -782,72 +792,21 @@ fun MainScreen(
 
                     if (onlineProvider == "gemini") {
                         Spacer(Modifier.height(10.dp))
-
-                        var geminiKeyInput by remember(geminiApiKey) {
-                            mutableStateOf(geminiApiKey)
-                        }
-
-                        var showGeminiKey by remember { mutableStateOf(false) }
-
-                        OutlinedTextField(
-                            value = geminiKeyInput,
-                            onValueChange = { geminiKeyInput = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            label = { Text("Gemini API key") },
-                            placeholder = { Text("Paste your Gemini key") },
-                            visualTransformation =
-                                if (showGeminiKey) VisualTransformation.None
-                                else PasswordVisualTransformation(),
-                            trailingIcon = {
-                                TextButton(onClick = { showGeminiKey = !showGeminiKey }) {
-                                    Text(if (showGeminiKey) "Hide" else "Show")
-                                }
-                            }
-                        )
-
-                        Spacer(Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        OutlinedButton(
+                            onClick = { showSettings = true },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        settingsDataStore.setGeminiApiKey(geminiKeyInput.trim())
-                                        Toast.makeText(context, "Gemini key saved.", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Save key")
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    geminiKeyInput = ""
-                                    scope.launch {
-                                        settingsDataStore.setGeminiApiKey("")
-                                        Toast.makeText(context, "Gemini key cleared.", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Clear")
-                            }
+                            Text(
+                                if (geminiApiKey.isBlank())
+                                    "Set Gemini API key in Settings"
+                                else
+                                    "Gemini API key saved • Settings"
+                            )
                         }
-
-                        Text(
-                            "The key is encrypted on this phone with Android Keystore and stored as ciphertext. It is only decrypted when this app needs to use it.",
-                            fontSize = 11.sp,
-                            color = Color(0xFF8A8391),
-                            modifier = Modifier.padding(top = 6.dp)
-                        )
                     }
 
                     Text(
-                        "Free fallback uses MyMemory. Gemini is optional and requires your own API key.",
+                        "Free fallback uses MyMemory. Gemini uses your own API key.",
                         fontSize = 11.sp,
                         color = Color(0xFF8A8391),
                         modifier = Modifier.padding(top = 10.dp)
@@ -859,6 +818,75 @@ fun MainScreen(
                 modifier =
                     Modifier.height(20.dp)
             )
+
+            if (showSettings) {
+                AlertDialog(
+                    onDismissRequest = { showSettings = false },
+                    title = { Text("Settings") },
+                    text = {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("Gemini", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                            Text(
+                                "Your Gemini API key is encrypted with Android Keystore and is never committed to GitHub.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF8A8391)
+                            )
+                            OutlinedTextField(
+                                value = geminiKeyInput,
+                                onValueChange = { geminiKeyInput = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                label = { Text("Gemini API key") },
+                                placeholder = { Text("Paste your Gemini API key") },
+                                visualTransformation =
+                                    if (showGeminiKey) VisualTransformation.None
+                                    else PasswordVisualTransformation(),
+                                trailingIcon = {
+                                    TextButton(onClick = { showGeminiKey = !showGeminiKey }) {
+                                        Text(if (showGeminiKey) "Hide" else "Show")
+                                    }
+                                }
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            settingsDataStore.setGeminiApiKey(geminiKeyInput.trim())
+                                            Toast.makeText(context, "Gemini key saved.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("Save key") }
+                                OutlinedButton(
+                                    onClick = {
+                                        geminiKeyInput = ""
+                                        scope.launch {
+                                            settingsDataStore.setGeminiApiKey("")
+                                            Toast.makeText(context, "Gemini key cleared.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("Clear") }
+                            }
+                            Divider()
+                            Text("Current mode: " + if (mode == "online") "Online" else "Offline", fontSize = 13.sp)
+                            Text("Online provider: " + if (onlineProvider == "gemini") "Gemini AI" else "Free fallback", fontSize = 13.sp)
+                            Text("Performance: " + performanceMode.replaceFirstChar { it.uppercase() }, fontSize = 13.sp)
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showSettings = false }) { Text("Done") }
+                    }
+                )
+            }
 
             // =================================================
             // OFFLINE MODEL MANAGER
