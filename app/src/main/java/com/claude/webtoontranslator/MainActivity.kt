@@ -434,7 +434,7 @@ fun MainScreen(
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White
                 )
-            )
+            }
 
             Spacer(
                 modifier =
