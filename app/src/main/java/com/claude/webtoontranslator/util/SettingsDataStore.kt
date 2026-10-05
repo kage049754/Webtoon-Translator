@@ -141,7 +141,18 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
-    suspend fun migrateGeminiApiKeyIfNeeded() {\n        context.dataStore.edit { preferences ->\n            val stored = preferences[KEY_GEMINI_API_KEY] ?: return@edit\n            if (stored.isNotBlank() && !stored.startsWith("v1:")) {\n                val encrypted = SecureApiKeyStore.encrypt(stored)\n                if (encrypted.isNotBlank()) {\n                    preferences[KEY_GEMINI_API_KEY] = encrypted\n                }\n            }\n        }\n    }\n\n    suspend fun setGeminiApiKey(value: String) {
+    suspend fun migrateGeminiApiKeyIfNeeded() {
+        context.dataStore.edit { preferences ->
+            val stored = preferences[KEY_GEMINI_API_KEY] ?: return@edit
+            if (stored.isNotBlank() && !stored.startsWith("v1:")) {
+                val encrypted = SecureApiKeyStore.encrypt(stored)
+                if (encrypted.isNotBlank()) {
+                    preferences[KEY_GEMINI_API_KEY] = encrypted
+                }
+            }
+        }
+    }
+
         context.dataStore.edit {
             val trimmed = value.trim()
             if (trimmed.isBlank()) {
