@@ -675,6 +675,80 @@ fun MainScreen(
                                 ) { Text("Clear") }
                             }
                             Divider()
+                            Text("Online target language", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Box {
+                                val currentLabel = OnlineTranslationManager.SUPPORTED_TARGET_LANGUAGES.firstOrNull { it.first == targetLang }?.second ?: "English"
+                                OutlinedButton(onClick = { showTargetLanguageMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(currentLabel) }
+                                DropdownMenu(expanded = showTargetLanguageMenu, onDismissRequest = { showTargetLanguageMenu = false }) {
+                                    OnlineTranslationManager.SUPPORTED_TARGET_LANGUAGES.forEach { (code, label) ->
+                                        DropdownMenuItem(text = { Text(label) }, onClick = {
+                                            showTargetLanguageMenu = false
+                                            scope.launch { settingsDataStore.setOnlineTargetLanguage(code) }
+                                        })
+                                    }
+                                }
+                            }
+                            Text("Performance", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            listOf("fast" to "Fast", "balanced" to "Balanced", "quality" to "Quality").forEach { (value, label) ->
+                                ScanModeOption(
+                                    title = label,
+                                    description = when (value) {
+                                        "fast" -> "Lowest processing time and battery use."
+                                        "quality" -> "Maximum OCR coverage."
+                                        else -> "Recommended balance."
+                                    },
+                                    selected = performanceMode == value,
+                                    onClick = { scope.launch { settingsDataStore.setPerformanceMode(value) } }
+                                )
+                            }
+                            Text("Offline models", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Text(if (modelsDownloaded) "Downloaded / ready" else "Not downloaded yet", fontSize = 12.sp, color = Color(0xFF8A8391))
+                            Button(
+                                onClick = {
+                                    if (!downloadingModels) {
+                                        downloadingModels = true
+                                        scope.launch {
+                                            val manager = TranslationManager()
+                                            try {
+                                                manager.preDownloadModels()
+                                                settingsDataStore.setModelsDownloaded(true)
+                                                Toast.makeText(context, "Offline models are ready.", Toast.LENGTH_SHORT).show()
+                                            } catch (_: Exception) {
+                                                Toast.makeText(context, "Model download failed. Check your internet connection.", Toast.LENGTH_LONG).show()
+                                            } finally {
+                                                manager.close()
+                                                downloadingModels = false
+                                            }
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !downloadingModels
+                            ) { Text(if (downloadingModels) "Downloading…" else "Download / Refresh Models") }
+                            Text("Scan area", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Text(if (hasSavedArea) "A saved scan area is available." else "No saved area yet.", fontSize = 12.sp, color = Color(0xFF8A8391))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        scope.launch { settingsDataStore.setScanMode("select_area") }
+                                        showSettings = false
+                                        Toast.makeText(context, "Start Overlay, then use the floating button to select the area.", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("Select Area") }
+                                OutlinedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            settingsDataStore.clearSavedScanArea()
+                                            settingsDataStore.setScanMode("whole_screen")
+                                        }
+                                        Toast.makeText(context, "Saved area cleared.", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = hasSavedArea
+                                ) { Text("Clear Area") }
+                            }
+                            Divider()
                             Text("Current mode: " + if (mode == "online") "Online" else "Offline", fontSize = 13.sp)
                             Text("Online provider: " + if (onlineProvider == "gemini") "Gemini AI" else "Free fallback", fontSize = 13.sp)
                             Text("Performance: " + performanceMode.replaceFirstChar { it.uppercase() }, fontSize = 13.sp)
@@ -686,6 +760,7 @@ fun MainScreen(
                 )
             }
 
+            if (false) {
             // =================================================
             // OFFLINE MODEL MANAGER
             // =================================================
@@ -1019,9 +1094,10 @@ fun MainScreen(
             InstructionRow(
                 step = "5",
                 text =
-                    "Tap the floating button 5 times quickly to completely close the overlay."
+                    "Hold the floating button for 5 seconds to completely close the overlay."
             )
 
+            }
             Spacer(
                 modifier =
                     Modifier.height(40.dp)
