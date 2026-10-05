@@ -41,11 +41,11 @@ class TextRecognitionManager {
     private val minConfidentLength = 1
     @Volatile private var preferredScript: String? = null
 
-    suspend fun recognize(bitmap: Bitmap): List<TextBlockResult> {
+    suspend fun recognize(bitmap: Bitmap, performanceMode: String = "balanced"): List<TextBlockResult> {
         val image = InputImage.fromBitmap(bitmap, 0)
         val allLines = mutableListOf<TextBlockResult>()
 
-        val selected = selectRecognizers()
+        val selected = selectRecognizers(performanceMode)
         coroutineScope {
             selected.map { (_, recognizer) ->
                 async {
@@ -147,11 +147,14 @@ class TextRecognitionManager {
     private fun hasMeaningfulLetters(text: String): Boolean =
         text.any { it.isLetter() }
 
-    private fun selectRecognizers(): List<Pair<String, TextRecognizer>> {
+    private fun selectRecognizers(performanceMode: String): List<Pair<String, TextRecognizer>> {
         val preferred = preferredScript
-        if (preferred == null) return recognizers
+        if (preferred == null || performanceMode == "quality") return recognizers
         val preferredRecognizer = recognizers.firstOrNull { it.first == preferred }
         val latin = recognizers.firstOrNull { it.first == "latin" }
+        if (performanceMode == "fast") {
+            return listOfNotNull(preferredRecognizer ?: latin).distinctBy { it.first }
+        }
         return listOfNotNull(preferredRecognizer, latin).distinctBy { it.first }
     }
 
