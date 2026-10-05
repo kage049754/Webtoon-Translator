@@ -142,4 +142,7 @@ class GeminiTranslationManager {
             connection?.disconnect()
         }
     }
+    fun close() {
+        // No persistent network/client resources are held by this manager.
+    }
 }
