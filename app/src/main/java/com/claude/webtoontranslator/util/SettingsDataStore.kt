@@ -153,6 +153,7 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
+    suspend fun setGeminiApiKey(value: String) {
         context.dataStore.edit {
             val trimmed = value.trim()
             if (trimmed.isBlank()) {
