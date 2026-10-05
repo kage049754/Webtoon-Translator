@@ -1053,37 +1053,34 @@ state = State.READY
         bitmap: Bitmap
     ): List<OverlayItem> {
 
-        val overlayItems =
-            mutableListOf<OverlayItem>()
+        // OCR blocks are independent. Translate them concurrently so a page
+        // with many bubbles does not wait for each bubble serially.
+        return coroutineScope {
+            blocks
+                .filter { it.text.any(Char::isLetter) }
+                .map { block ->
+                    async(Dispatchers.Default) {
+                        val result =
+                            translationManager.detectAndTranslate(block.text)
+                                ?: return@async null
 
-        for (block in blocks) {
+                        if (!isUsableTranslation(block.text, result.translatedText)) {
+                            return@async null
+                        }
 
-            val result =
-                translationManager
-                    .detectAndTranslate(
-                        block.text
-                    )
-                    ?: continue
-
-            if (!isUsableTranslation(block.text, result.translatedText)) continue
-
-            val bgColor =
-                TranslationOverlayView
-                    .sampleBackgroundColor(
-                        bitmap,
-                        block.boundingBox
-                    )
-
-            overlayItems.add(
-                OverlayItem(
-                    block.boundingBox,
-                    result.translatedText,
-                    bgColor
-                )
-            )
+                        OverlayItem(
+                            block.boundingBox,
+                            result.translatedText,
+                            TranslationOverlayView.sampleBackgroundColor(
+                                bitmap,
+                                block.boundingBox
+                            )
+                        )
+                    }
+                }
+                .awaitAll()
+                .filterNotNull()
         }
-
-        return overlayItems
     }
 
     // =========================================================
@@ -1151,20 +1148,30 @@ state = State.READY
             }
         }
 
-        // Reliable no-key fallback: translate each OCR block with MyMemory.
-        val overlayItems = mutableListOf<OverlayItem>()
-        for (block in blocks) {
-            val result = onlineTranslationManager.translate(block.text, targetLang) ?: continue
-            if (!isUsableTranslation(block.text, result.translatedText)) continue
-            overlayItems.add(
-                OverlayItem(
-                    block.boundingBox,
-                    result.translatedText,
-                    TranslationOverlayView.sampleBackgroundColor(bitmap, block.boundingBox)
-                )
-            )
+        // Reliable no-key fallback: translate OCR blocks concurrently.
+        return coroutineScope {
+            blocks
+                .filter { it.text.any(Char::isLetter) }
+                .map { block ->
+                    async(Dispatchers.IO) {
+                        val result = onlineTranslationManager.translate(block.text, targetLang)
+                            ?: return@async null
+                        if (!isUsableTranslation(block.text, result.translatedText)) {
+                            return@async null
+                        }
+                        OverlayItem(
+                            block.boundingBox,
+                            result.translatedText,
+                            TranslationOverlayView.sampleBackgroundColor(
+                                bitmap,
+                                block.boundingBox
+                            )
+                        )
+                    }
+                }
+                .awaitAll()
+                .filterNotNull()
         }
-        return overlayItems
     }
 
     /**
