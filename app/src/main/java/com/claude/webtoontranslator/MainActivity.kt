@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.claude.webtoontranslator.ocr.OnlineTranslationManager
+import com.claude.webtoontranslator.ocr.TranslationManager
 import com.claude.webtoontranslator.service.OverlayService
 import com.claude.webtoontranslator.util.SettingsDataStore
 import kotlinx.coroutines.launch
@@ -340,6 +341,12 @@ fun MainScreen(
         settingsDataStore
             .performanceMode
             .collectAsState(initial = "balanced")
+
+    val modelsDownloaded by
+        settingsDataStore
+            .modelsDownloaded
+            .collectAsState(initial = false)
+    var downloadingModels by remember { mutableStateOf(false) }
 
     val scanMode by
         settingsDataStore
@@ -852,6 +859,61 @@ fun MainScreen(
                 modifier =
                     Modifier.height(20.dp)
             )
+
+            // =================================================
+            // OFFLINE MODEL MANAGER
+            // =================================================
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2A2830), RoundedCornerShape(16.dp))
+                    .padding(16.dp)
+            ) {
+                Text(
+                    "Offline models",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    if (modelsDownloaded) {
+                        "Models are marked ready. They stay cached on the device."
+                    } else {
+                        "Download the language models once while online. Translation can then work without internet."
+                    },
+                    fontSize = 12.sp,
+                    color = Color(0xFF8A8391)
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        if (!downloadingModels) {
+                            downloadingModels = true
+                            scope.launch {
+                                val manager = TranslationManager()
+                                try {
+                                    manager.preDownloadModels()
+                                    settingsDataStore.setModelsDownloaded(true)
+                                    Toast.makeText(context, "Offline models are ready.", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Model download failed. Check your internet connection.", Toast.LENGTH_LONG).show()
+                                } finally {
+                                    manager.close()
+                                    downloadingModels = false
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !downloadingModels
+                ) {
+                    Text(if (downloadingModels) "Downloading…" else "Download / Refresh Models")
+                }
+            }
+
+            Spacer(Modifier.height(28.dp))
 
             // =================================================
             // PERFORMANCE MODE
