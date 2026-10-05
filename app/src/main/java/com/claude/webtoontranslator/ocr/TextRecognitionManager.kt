@@ -164,8 +164,24 @@ class TextRecognitionManager {
                     val lineHeight = currentBox.height().coerceAtLeast(1)
                     val overlap = horizontalOverlapRatio(currentBox, box)
 
-                    // Keep dialogue lines together, but avoid joining distant panels.
-                    if (gap in -lineHeight..(lineHeight * 1.25f).toInt() && overlap >= 0.35f) {
+                    val horizontalGap = when {
+                        box.left > currentBox.right -> box.left - currentBox.right
+                        currentBox.left > box.right -> currentBox.left - box.right
+                        else -> 0
+                    }
+                    val maxHorizontalGap = (lineHeight * 1.5f).toInt()
+
+                    // Join only lines that plausibly belong to the same bubble:
+                    // they must be vertically close, share enough horizontal span,
+                    // and must not be separated by a large side-to-side gap.
+                    val verticallyClose =
+                        gap in -lineHeight..(lineHeight * 1.1f).toInt()
+                    val horizontallyAligned =
+                        overlap >= 0.45f
+                    val sideGapAcceptable =
+                        horizontalGap <= maxHorizontalGap
+
+                    if (verticallyClose && horizontallyAligned && sideGapAcceptable) {
                         currentBox.union(box)
                         currentTextParts += sorted[j].text
                         used[j] = true
