@@ -100,7 +100,7 @@ class GeminiTranslationManager {
 
             val jsonText = text
                 .removePrefix("```json")
-                .removePrefix(fence)
+                .removePrefix("```")
                 .trim()
 
             val array = JSONArray(jsonText)
