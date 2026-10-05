@@ -336,6 +336,11 @@ fun MainScreen(
             .geminiApiKey
             .collectAsState(initial = "")
 
+    val performanceMode by
+        settingsDataStore
+            .performanceMode
+            .collectAsState(initial = "balanced")
+
     val scanMode by
         settingsDataStore
             .scanMode
@@ -847,6 +852,56 @@ fun MainScreen(
                 modifier =
                     Modifier.height(20.dp)
             )
+
+            // =================================================
+            // PERFORMANCE MODE
+            // =================================================
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2A2830), RoundedCornerShape(16.dp))
+                    .padding(16.dp)
+            ) {
+                Text(
+                    "Translation performance",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    when (performanceMode) {
+                        "fast" -> "Fast: prioritize speed, reuse unchanged regions, and use the learned OCR script."
+                        "quality" -> "Quality: run all OCR recognizers and validate results more strictly."
+                        else -> "Balanced: smart OCR plus safe fallbacks. Recommended."
+                    },
+                    fontSize = 12.sp,
+                    color = Color(0xFF8A8391)
+                )
+                Spacer(Modifier.height(12.dp))
+                listOf(
+                    "fast" to "Fast",
+                    "balanced" to "Balanced",
+                    "quality" to "Quality"
+                ).forEach { (value, label) ->
+                    ScanModeOption(
+                        title = label,
+                        description = when (value) {
+                            "fast" -> "Best for scrolling and lower battery use."
+                            "quality" -> "Best OCR coverage for difficult pages."
+                            else -> "Best overall speed and accuracy."
+                        },
+                        selected = performanceMode == value,
+                        onClick = {
+                            scope.launch { settingsDataStore.setPerformanceMode(value) }
+                        }
+                    )
+                    if (value != "quality") Spacer(Modifier.height(8.dp))
+                }
+            }
+
+            Spacer(Modifier.height(28.dp))
 
             // =================================================
             // SCAN AREA SETTINGS
