@@ -363,11 +363,6 @@ fun MainScreen(
     var geminiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
     var showGeminiKey by remember { mutableStateOf(false) }
     var showTargetLanguageMenu by remember { mutableStateOf(false) }
-    val fontScale by settingsDataStore.fontScale.collectAsState(initial = 1.0f)
-    val fontFamily by settingsDataStore.fontFamily.collectAsState(initial = "default")
-    val fontStyle by settingsDataStore.fontStyle.collectAsState(initial = "normal")
-    val backgroundStyle by settingsDataStore.backgroundStyle.collectAsState(initial = "lens")
-    val opacity by settingsDataStore.opacity.collectAsState(initial = 0.92f)
 
     val scanMode by
         settingsDataStore
@@ -502,10 +497,44 @@ fun MainScreen(
                     )
             )
 
-            Spacer(
-                modifier =
-                    Modifier.height(28.dp)
-            )
+            Spacer(Modifier.height(18.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Performance", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(performanceMode.replaceFirstChar { it.uppercase() }, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("fast" to "Fast", "balanced" to "Balanced", "quality" to "Quality").forEach { (value, label) ->
+                        FilterChip(
+                            selected = performanceMode == value,
+                            onClick = { scope.launch { settingsDataStore.setPerformanceMode(value) } },
+                            label = { Text(label) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                Text(
+                    when (performanceMode) {
+                        "fast" -> "Quick scans with wider language recognition."
+                        "quality" -> "Thorough recognition for difficult text; may take longer."
+                        else -> "Recommended balance of speed and recognition accuracy."
+                    },
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
 
             // =================================================
             // START BUTTON
@@ -649,6 +678,19 @@ fun MainScreen(
                                 .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            Text("Performance", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            listOf("fast" to "Fast", "balanced" to "Balanced", "quality" to "Quality").forEach { (value, label) ->
+                                ScanModeOption(
+                                    title = label,
+                                    description = when (value) {
+                                        "fast" -> "Lowest processing time and battery use."
+                                        "quality" -> "Maximum OCR coverage."
+                                        else -> "Recommended balance."
+                                    },
+                                    selected = performanceMode == value,
+                                    onClick = { scope.launch { settingsDataStore.setPerformanceMode(value) } }
+                                )
+                            }
                             Text("Appearance", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                             Text("Choose how the app looks.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -717,34 +759,6 @@ fun MainScreen(
                                 }
                             }
                             Divider()
-                            Text("Translation display", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-                            Text("Font family", fontSize = 14.sp)
-                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                listOf("default" to "Default", "sans" to "Sans", "serif" to "Serif", "monospace" to "Mono").forEach { (v, label) ->
-                                    FilterChip(selected = fontFamily == v, onClick = { scope.launch { settingsDataStore.setFontFamily(v) } }, label = { Text(label) })
-                                }
-                            }
-                            Text("Font style", fontSize = 14.sp)
-                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                listOf("normal" to "Normal", "bold" to "Bold", "italic" to "Italic", "bold_italic" to "Bold+Italic").forEach { (v, label) ->
-                                    FilterChip(selected = fontStyle == v, onClick = { scope.launch { settingsDataStore.setFontStyle(v) } }, label = { Text(label) })
-                                }
-                            }
-                            Text("Background style", fontSize = 14.sp)
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                listOf("lens" to "Lens-like sampled", "white" to "White", "dark" to "Dark", "bubble" to "Cream bubble", "transparent" to "Transparent text").forEach { (v, label) ->
-                                    ScanModeOption(title = label, description = when (v) {
-                                        "lens" -> "Sample the original area color."
-                                        "transparent" -> "No background fill; outlined text."
-                                        else -> "Use a fixed translation background."
-                                    }, selected = backgroundStyle == v, onClick = { scope.launch { settingsDataStore.setBackgroundStyle(v) } })
-                                }
-                            }
-                            Text("Background transparency: " + (opacity * 100).toInt() + "%", fontSize = 14.sp)
-                            Slider(value = opacity, onValueChange = { value -> scope.launch { settingsDataStore.setOpacity(value) } }, valueRange = 0f..1f)
-                            Text("Text size: " + (fontScale * 100).toInt() + "%", fontSize = 14.sp)
-                            Slider(value = fontScale, onValueChange = { value -> scope.launch { settingsDataStore.setFontScale(value) } }, valueRange = 0.5f..2.5f)
-                            Divider()
                             Text("Online target language", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                             Box {
                                 val currentLabel = OnlineTranslationManager.SUPPORTED_TARGET_LANGUAGES.firstOrNull { it.first == targetLang }?.second ?: "English"
@@ -757,19 +771,6 @@ fun MainScreen(
                                         })
                                     }
                                 }
-                            }
-                            Text("Performance", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                            listOf("fast" to "Fast", "balanced" to "Balanced", "quality" to "Quality").forEach { (value, label) ->
-                                ScanModeOption(
-                                    title = label,
-                                    description = when (value) {
-                                        "fast" -> "Lowest processing time and battery use."
-                                        "quality" -> "Maximum OCR coverage."
-                                        else -> "Recommended balance."
-                                    },
-                                    selected = performanceMode == value,
-                                    onClick = { scope.launch { settingsDataStore.setPerformanceMode(value) } }
-                                )
                             }
                             Text("Offline models", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                             Text(if (modelsDownloaded) "Downloaded / ready" else "Not downloaded yet", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
