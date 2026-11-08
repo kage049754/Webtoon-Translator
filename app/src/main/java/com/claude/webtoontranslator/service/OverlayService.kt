@@ -490,7 +490,7 @@ state = State.READY
                     isDrag = false
                     holdCloseTriggered = false
                     holdCloseHandler.removeCallbacks(closeByHoldRunnable)
-                    holdCloseHandler.postDelayed(closeByHoldRunnable, 5_000L)
+                    holdCloseHandler.postDelayed(closeByHoldRunnable, 3_000L)
                     true
                 }
 
@@ -772,26 +772,11 @@ state = State.READY
         fullBitmap: Bitmap
     ) {
 
+        // One complete snapshot per tap. Avoid retaining partial OCR regions from
+        // previous frames, which can create oversized/stale merged translations.
         val performanceMode = settingsDataStore.performanceMode.first()
-        val change = detectChangedRegion(bitmap, performanceMode)
-
-        if (change.isUnchanged && lastOverlayItems.isNotEmpty()) {
-            showOverlay(lastOverlayItems)
-            setButtonLabel("⏹")
-            state = State.SHOWING
-            startLiveTranslation()
-            return
-        }
-
-        val scanRect = change.region
-        val ocrBitmap = if (scanRect != null &&
-            (scanRect.left > 0 || scanRect.top > 0 ||
-                scanRect.right < bitmap.width || scanRect.bottom < bitmap.height)
-        ) {
-            Bitmap.createBitmap(bitmap, scanRect.left, scanRect.top, scanRect.width(), scanRect.height())
-        } else {
-            bitmap
-        }
+        val scanRect: Rect? = null
+        val ocrBitmap = bitmap
 
         val blocks =
             withContext(Dispatchers.Default) {
@@ -827,11 +812,6 @@ state = State.READY
                 .translationMode
                 .first()
 
-        val changedFullRect = scanRect?.let { Rect(it).apply { offset(offsetX, offsetY) } }
-        val retained = if (changedFullRect != null) {
-            lastOverlayItems.filter { !Rect.intersects(it.box, changedFullRect) }
-        } else emptyList()
-
         val newOverlayItems =
             if (
                 mode ==
@@ -857,9 +837,9 @@ state = State.READY
                 )
             }
 
+        // Each recognized speech bubble remains a separate positioned overlay item.
         val overlayItems =
-            (retained + newOverlayItems)
-                .distinctBy { it.box.toString() + ":" + it.translatedText }
+            newOverlayItems.distinctBy { it.box.toString() + ":" + it.translatedText }
 
         updateFrameCache(bitmap, overlayItems, performanceMode)
 
@@ -890,7 +870,6 @@ state = State.READY
         setButtonLabel("⏹")
 
         state = State.SHOWING
-        startLiveTranslation()
     }
 
     private data class ChangeResult(val isUnchanged: Boolean, val region: Rect?)
@@ -1361,6 +1340,7 @@ state = State.READY
 
         stopLiveTranslation()
         removeOverlayView()
+        clearFrameCache()
 
         setButtonLabel("🔍")
 
