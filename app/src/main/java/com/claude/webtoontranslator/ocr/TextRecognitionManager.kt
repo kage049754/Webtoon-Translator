@@ -65,7 +65,7 @@ class TextRecognitionManager {
             // OCR sometimes returns random punctuation/digits/box artifacts.
             // They are not translatable dialogue, so never send them to a
             // translator or draw an overlay for them.
-            .filter { hasMeaningfulLetters(it.text) }
+            .filter { isPlausibleText(it.text) }
             .filter { it.text.replace("\\s".toRegex(), "").length >= minConfidentLength }
 
         val deduplicated = deduplicateOverlapping(cleaned)
@@ -144,18 +144,37 @@ class TextRecognitionManager {
         }
     }
 
-    private fun hasMeaningfulLetters(text: String): Boolean =
-        text.any { it.isLetter() }
+    /**
+     * Reject OCR noise such as isolated punctuation, digits, and symbol
+     * clusters before they reach translation. A single CJK character can be
+     * meaningful dialogue, while isolated Latin glyphs are usually OCR noise.
+     */
+    private fun isPlausibleText(text: String): Boolean {
+        val compact = text.filterNot { it.isWhitespace() }
+        if (compact.isEmpty()) return false
+        val letters = compact.count { it.isLetter() }
+        if (letters == 0) return false
+        val cjk = compact.any {
+            it in '\\u3040'..'\\u30FF' ||
+                it in '\\uAC00'..'\\uD7AF' ||
+                it in '\\u4E00'..'\\u9FFF'
+        }
+        val digits = compact.count { it.isDigit() }
+        val symbols = compact.length - letters - digits
+        if (symbols.toFloat() / compact.length > 0.45f) return false
+        if (digits > (letters * 0.6f).toInt()) return false
+        if (!cjk && letters < 2 && compact !in setOf("I", "A", "a")) return false
+        return true
+    }
 
     private fun selectRecognizers(performanceMode: String): List<Pair<String, TextRecognizer>> {
+        // The old Fast mode locked onto the previous page's detected script.
+        // A Chinese page after a Korean page could therefore be missed entirely.
+        // Keep every script recognizer available in all modes; the ML Kit calls
+        // run concurrently. The preferred script is retained for ordering only.
         val preferred = preferredScript
-        if (preferred == null || performanceMode == "quality") return recognizers
-        val preferredRecognizer = recognizers.firstOrNull { it.first == preferred }
-        val latin = recognizers.firstOrNull { it.first == "latin" }
-        if (performanceMode == "fast") {
-            return listOfNotNull(preferredRecognizer ?: latin).distinctBy { it.first }
-        }
-        return listOfNotNull(preferredRecognizer, latin).distinctBy { it.first }
+        return if (preferred == null) recognizers
+        else recognizers.sortedBy { if (it.first == preferred) 0 else 1 }
     }
 
     private fun updatePreferredScript(blocks: List<TextBlockResult>) {
