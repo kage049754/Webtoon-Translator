@@ -1,8 +1,10 @@
 package com.claude.webtoontranslator.ocr
 
 import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.nl.languageid.LanguageIdentification
 import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.TranslateRemoteModel
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
@@ -91,14 +93,17 @@ class TranslationManager {
             val translator = getOrCreateTranslator(language)
 
             if (language !in modelReady) {
-                try {
-                    translator.downloadModelIfNeeded(
-                        DownloadConditions.Builder().build()
-                    ).await()
-                    modelReady += language
+                // Respect the user's per-language offline model choices. Do not
+                // silently download a model that was never installed or removed.
+                val installed = try {
+                    RemoteModelManager.getInstance()
+                        .isModelDownloaded(TranslateRemoteModel.Builder(language).build())
+                        .await()
                 } catch (_: Exception) {
-                    return null
+                    false
                 }
+                if (!installed) return null
+                modelReady += language
             }
 
             val translated = translator.translate(cleanText).await()
