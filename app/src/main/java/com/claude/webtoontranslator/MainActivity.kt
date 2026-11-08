@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.claude.webtoontranslator.ocr.OnlineTranslationManager
+import com.claude.webtoontranslator.ocr.OfflineLanguageModelManager
 import com.claude.webtoontranslator.ocr.TranslationManager
 import com.claude.webtoontranslator.service.OverlayService
 import com.claude.webtoontranslator.util.SettingsDataStore
@@ -359,6 +360,8 @@ fun MainScreen(
             .modelsDownloaded
             .collectAsState(initial = false)
     var downloadingModels by remember { mutableStateOf(false) }
+    val offlineModelManager = remember { OfflineLanguageModelManager() }
+    var installedOfflineLanguages by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showSettings by remember { mutableStateOf(false) }
     var geminiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
     var showGeminiKey by remember { mutableStateOf(false) }
@@ -382,6 +385,12 @@ fun MainScreen(
         remember {
             mutableStateOf(false)
         }
+
+    LaunchedEffect(showSettings) {
+        if (showSettings) {
+            installedOfflineLanguages = offlineModelManager.installedLanguages()
+        }
+    }
 
     Surface(
         modifier =
@@ -772,30 +781,71 @@ fun MainScreen(
                                     }
                                 }
                             }
-                            Text("Offline models", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                            Text(if (modelsDownloaded) "Downloaded / ready" else "Not downloaded yet", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Button(
-                                onClick = {
-                                    if (!downloadingModels) {
-                                        downloadingModels = true
-                                        scope.launch {
-                                            val manager = TranslationManager()
-                                            try {
-                                                manager.preDownloadModels()
-                                                settingsDataStore.setModelsDownloaded(true)
-                                                Toast.makeText(context, "Offline models are ready.", Toast.LENGTH_SHORT).show()
-                                            } catch (_: Exception) {
-                                                Toast.makeText(context, "Model download failed. Check your internet connection.", Toast.LENGTH_LONG).show()
-                                            } finally {
-                                                manager.close()
-                                                downloadingModels = false
-                                            }
-                                        }
+                            Text("Offline language models", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Text(
+                                "Install only the languages you need. Installed models work without internet.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            offlineModelManager.languages.forEach { language ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(language.label, fontWeight = FontWeight.Medium)
+                                        Text(
+                                            if (language.code in installedOfflineLanguages) "Downloaded on this device" else "Not installed",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !downloadingModels
-                            ) { Text(if (downloadingModels) "Downloading…" else "Download / Refresh Models") }
+                                    if (language.code in installedOfflineLanguages) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                if (!downloadingModels) {
+                                                    downloadingModels = true
+                                                    scope.launch {
+                                                        try {
+                                                            offlineModelManager.remove(language.code)
+                                                            installedOfflineLanguages = offlineModelManager.installedLanguages()
+                                                            Toast.makeText(context, "${language.label} model removed.", Toast.LENGTH_SHORT).show()
+                                                        } catch (_: Exception) {
+                                                            Toast.makeText(context, "Couldn't remove the model.", Toast.LENGTH_LONG).show()
+                                                        } finally {
+                                                            downloadingModels = false
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            enabled = !downloadingModels
+                                        ) { Text("Remove") }
+                                    } else {
+                                        Button(
+                                            onClick = {
+                                                if (!downloadingModels) {
+                                                    downloadingModels = true
+                                                    scope.launch {
+                                                        try {
+                                                            offlineModelManager.install(language.code)
+                                                            installedOfflineLanguages = offlineModelManager.installedLanguages()
+                                                            Toast.makeText(context, "${language.label} model installed.", Toast.LENGTH_SHORT).show()
+                                                        } catch (_: Exception) {
+                                                            Toast.makeText(context, "Download failed. Check your internet connection.", Toast.LENGTH_LONG).show()
+                                                        } finally {
+                                                            downloadingModels = false
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            enabled = !downloadingModels
+                                        ) { Text("Install") }
+                                    }
+                                }
+                                Divider()
+                            }
+                            Text("${installedOfflineLanguages.size} of ${offlineModelManager.languages.size} language models installed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("Scan area", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                             Text(if (hasSavedArea) "A saved scan area is available." else "No saved area yet.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
