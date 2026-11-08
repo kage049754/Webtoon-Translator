@@ -113,31 +113,43 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-
-            MaterialTheme(
-                colorScheme =
-                    darkColorScheme(
-                        primary =
-                            Color(0xFF6750A4),
-
-                        secondary =
-                            Color(0xFF03DAC5),
-
-                        background =
-                            Color(0xFF1C1B1F),
-
-                        surface =
-                            Color(0xFF1C1B1F)
-                    )
-            ) {
-
+            val settingsDataStore = remember { SettingsDataStore(this) }
+            val themeMode by settingsDataStore.themeMode.collectAsState(initial = "system")
+            val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val useDarkTheme = when (themeMode) {
+                "dark" -> true
+                "light" -> false
+                else -> systemDark
+            }
+            val scheme = if (useDarkTheme) {
+                darkColorScheme(
+                    primary = Color(0xFFB9A7FF),
+                    onPrimary = Color(0xFF24134F),
+                    secondary = Color(0xFF8BD8CD),
+                    background = Color(0xFF111318),
+                    surface = Color(0xFF191B22),
+                    surfaceVariant = Color(0xFF292C35),
+                    onSurface = Color(0xFFE6E1EA),
+                    onSurfaceVariant = Color(0xFFC2BDCA),
+                    outline = Color(0xFF77717F)
+                )
+            } else {
+                lightColorScheme(
+                    primary = Color(0xFF5B43A8),
+                    onPrimary = Color.White,
+                    secondary = Color(0xFF176B62),
+                    background = Color(0xFFF7F5FC),
+                    surface = Color(0xFFFFFFFF),
+                    surfaceVariant = Color(0xFFECE8F5),
+                    onSurface = Color(0xFF1B1822),
+                    onSurfaceVariant = Color(0xFF625D6B),
+                    outline = Color(0xFF817B89)
+                )
+            }
+            MaterialTheme(colorScheme = scheme) {
                 MainScreen(
-                    onStartOverlay = {
-                        startOverlayFlow()
-                    },
-
-                    settingsDataStore =
-                        SettingsDataStore(this)
+                    onStartOverlay = { startOverlayFlow() },
+                    settingsDataStore = settingsDataStore
                 )
             }
         }
@@ -310,8 +322,8 @@ fun MainScreen(
         settingsDataStore.migrateGeminiApiKeyIfNeeded()
     }
 
-    val context =
-    androidx.compose.ui.platform.LocalContext.current    
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val themeMode by settingsDataStore.themeMode.collectAsState(initial = "system")
 
     val mode by
         settingsDataStore
@@ -408,7 +420,7 @@ fun MainScreen(
                     Modifier
                         .size(72.dp)
                         .background(
-                            Color(0xFF6750A4),
+                            MaterialTheme.colorScheme.primary,
                             RoundedCornerShape(20.dp)
                         ),
 
@@ -419,7 +431,7 @@ fun MainScreen(
                 Text(
                     "訳",
                     fontSize = 32.sp,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -450,7 +462,7 @@ fun MainScreen(
 
             Surface(
                 shape = RoundedCornerShape(50.dp),
-                color = if (mode == "online") Color(0xFF263A33) else Color(0xFF302D38)
+                color = MaterialTheme.colorScheme.secondaryContainer
             ) {
                 Text(
                     if (mode == "online") "ONLINE" else "OFFLINE",
@@ -509,9 +521,7 @@ fun MainScreen(
                         .weight(1.35f)
                         .height(56.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF6750A4)
-                    )
+                    colors = ButtonDefaults.buttonColors()
                 ) {
                     Text(
                         "Start Overlay",
@@ -576,7 +586,7 @@ fun MainScreen(
                 fontSize = 12.sp,
 
                 color =
-                    Color(0xFF8A8391),
+                    MaterialTheme.colorScheme.onSurfaceVariant,
 
                 modifier =
                     Modifier.padding(
@@ -596,7 +606,7 @@ fun MainScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF2A2830), RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
                     .padding(16.dp)
             ) {
                 Row(
@@ -608,7 +618,7 @@ fun MainScreen(
                         Text(if (mode == "online") "Online mode" else "Offline mode", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         Text(
                             if (mode == "online") "Uses Gemini or the free fallback." else "Uses downloaded on-device translation models.",
-                            fontSize = 12.sp, color = Color(0xFF8A8391)
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(
@@ -616,7 +626,7 @@ fun MainScreen(
                         onCheckedChange = { isOnline ->
                             scope.launch { settingsDataStore.setTranslationMode(if (isOnline) "online" else "offline") }
                         },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF03DAC5))
+                        colors = SwitchDefaults.colors()
                     )
                 }
 
@@ -626,7 +636,12 @@ fun MainScreen(
             if (showSettings) {
                 AlertDialog(
                     onDismissRequest = { showSettings = false },
-                    title = { Text("Settings") },
+                    title = {
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("Personalize your translation experience", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
                     text = {
                         Column(
                             modifier = Modifier
@@ -634,11 +649,24 @@ fun MainScreen(
                                 .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            Text("Appearance", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                            Text("Choose how the app looks.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("system" to "System", "light" to "Light", "dark" to "Dark").forEach { (value, label) ->
+                                    FilterChip(
+                                        selected = themeMode == value,
+                                        onClick = { scope.launch { settingsDataStore.setThemeMode(value) } },
+                                        label = { Text(label) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                            Divider()
                             Text("Gemini", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                             Text(
                                 "Your Gemini API key is encrypted with Android Keystore and is never committed to GitHub.",
                                 fontSize = 12.sp,
-                                color = Color(0xFF8A8391)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             OutlinedTextField(
                                 value = geminiKeyInput,
@@ -744,7 +772,7 @@ fun MainScreen(
                                 )
                             }
                             Text("Offline models", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                            Text(if (modelsDownloaded) "Downloaded / ready" else "Not downloaded yet", fontSize = 12.sp, color = Color(0xFF8A8391))
+                            Text(if (modelsDownloaded) "Downloaded / ready" else "Not downloaded yet", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Button(
                                 onClick = {
                                     if (!downloadingModels) {
@@ -768,7 +796,7 @@ fun MainScreen(
                                 enabled = !downloadingModels
                             ) { Text(if (downloadingModels) "Downloading…" else "Download / Refresh Models") }
                             Text("Scan area", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                            Text(if (hasSavedArea) "A saved scan area is available." else "No saved area yet.", fontSize = 12.sp, color = Color(0xFF8A8391))
+                            Text(if (hasSavedArea) "A saved scan area is available." else "No saved area yet.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
                                     onClick = {
@@ -798,7 +826,11 @@ fun MainScreen(
                     },
                     confirmButton = {
                         TextButton(onClick = { showSettings = false }) { Text("Done") }
-                    }
+                    },
+                    shape = RoundedCornerShape(28.dp),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    textContentColor = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -810,7 +842,7 @@ fun MainScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF2A2830), RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
                     .padding(16.dp)
             ) {
                 Text(
@@ -827,7 +859,7 @@ fun MainScreen(
                         "Download the language models once while online. Translation can then work without internet."
                     },
                     fontSize = 12.sp,
-                    color = Color(0xFF8A8391)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(12.dp))
                 Button(
@@ -865,7 +897,7 @@ fun MainScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF2A2830), RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
                     .padding(16.dp)
             ) {
                 Text(
@@ -882,7 +914,7 @@ fun MainScreen(
                         else -> "Balanced: smart OCR plus safe fallbacks. Recommended."
                     },
                     fontSize = 12.sp,
-                    color = Color(0xFF8A8391)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(12.dp))
                 listOf(
@@ -918,7 +950,7 @@ fun MainScreen(
                     Modifier
                         .fillMaxWidth()
                         .background(
-                            Color(0xFF2A2830),
+                            MaterialTheme.colorScheme.surfaceVariant,
                             RoundedCornerShape(16.dp)
                         )
                         .padding(16.dp)
@@ -951,7 +983,7 @@ fun MainScreen(
                     fontSize = 12.sp,
 
                     color =
-                        Color(0xFF8A8391)
+                        MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(
@@ -1172,9 +1204,9 @@ fun ScanModeOption(
 
     color =
         if (selected)
-            Color(0xFF3B3548)
+            MaterialTheme.colorScheme.secondaryContainer
         else
-            Color(0xFF242229)
+            MaterialTheme.colorScheme.surface
 ) {
 
         Row(
@@ -1223,7 +1255,7 @@ fun ScanModeOption(
                         if (enabled)
                             Color.White
                         else
-                            Color(0xFF66616B)
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
 
                 Text(
@@ -1234,9 +1266,9 @@ fun ScanModeOption(
 
                     color =
                         if (enabled)
-                            Color(0xFF9D97A3)
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         else
-                            Color(0xFF5E5963)
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
             }
         }
@@ -1266,7 +1298,7 @@ fun InstructionRow(
                 Modifier
                     .size(26.dp)
                     .background(
-                        Color(0xFF03DAC5),
+                        MaterialTheme.colorScheme.secondaryContainer,
                         RoundedCornerShape(8.dp)
                     ),
 
@@ -1277,7 +1309,7 @@ fun InstructionRow(
             Text(
                 step,
                 fontSize = 13.sp,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -1290,7 +1322,7 @@ fun InstructionRow(
         Text(
             text,
             fontSize = 14.sp,
-            color = Color(0xFFCFC9D3)
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
