@@ -138,7 +138,7 @@ class OverlayService : Service() {
                     // Keep live mode resilient to transient capture/OCR failures.
                 } finally {
                     if (liveScanEnabled && state == State.SHOWING) {
-                        liveScanHandler.postDelayed(liveScanRunnable, 1600L)
+                        liveScanHandler.postDelayed(this, 1600L)
                     }
                 }
             }
