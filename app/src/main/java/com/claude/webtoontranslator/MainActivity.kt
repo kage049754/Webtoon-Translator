@@ -351,6 +351,11 @@ fun MainScreen(
     var geminiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
     var showGeminiKey by remember { mutableStateOf(false) }
     var showTargetLanguageMenu by remember { mutableStateOf(false) }
+    val fontScale by settingsDataStore.fontScale.collectAsState(initial = 1.0f)
+    val fontFamily by settingsDataStore.fontFamily.collectAsState(initial = "default")
+    val fontStyle by settingsDataStore.fontStyle.collectAsState(initial = "normal")
+    val backgroundStyle by settingsDataStore.backgroundStyle.collectAsState(initial = "lens")
+    val opacity by settingsDataStore.opacity.collectAsState(initial = 0.92f)
 
     val scanMode by
         settingsDataStore
@@ -448,10 +453,7 @@ fun MainScreen(
                 color = if (mode == "online") Color(0xFF263A33) else Color(0xFF302D38)
             ) {
                 Text(
-                    if (mode == "online")
-                        "ONLINE • " + if (onlineProvider == "gemini") "Gemini AI" else "Free fallback"
-                    else
-                        "OFFLINE • On-device translation",
+                    if (mode == "online") "ONLINE" else "OFFLINE",
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -617,23 +619,7 @@ fun MainScreen(
                         colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF03DAC5))
                     )
                 }
-                if (mode == "online") {
-                    Spacer(Modifier.height(12.dp))
-                    Text("Online engine", fontSize = 13.sp, color = Color(0xFFB0AAB8))
-                    Spacer(Modifier.height(6.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = onlineProvider == "mymemory",
-                            onClick = { scope.launch { settingsDataStore.setOnlineProvider("mymemory") } },
-                            label = { Text("Free fallback") }
-                        )
-                        FilterChip(
-                            selected = onlineProvider == "gemini",
-                            onClick = { scope.launch { settingsDataStore.setOnlineProvider("gemini") } },
-                            label = { Text("Gemini") }
-                        )
-                    }
-                }
+
             }
 
             Spacer(Modifier.height(20.dp))
@@ -694,6 +680,42 @@ fun MainScreen(
                                     modifier = Modifier.weight(1f)
                                 ) { Text("Clear") }
                             }
+                            Divider()
+                            if (mode == "online") {
+                                Text("Online engine", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FilterChip(selected = onlineProvider == "mymemory", onClick = { scope.launch { settingsDataStore.setOnlineProvider("mymemory") } }, label = { Text("Free fallback") })
+                                    FilterChip(selected = onlineProvider == "gemini", onClick = { scope.launch { settingsDataStore.setOnlineProvider("gemini") } }, label = { Text("Gemini") })
+                                }
+                            }
+                            Divider()
+                            Text("Translation display", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                            Text("Font family", fontSize = 14.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                listOf("default" to "Default", "sans" to "Sans", "serif" to "Serif", "monospace" to "Mono").forEach { (v, label) ->
+                                    FilterChip(selected = fontFamily == v, onClick = { scope.launch { settingsDataStore.setFontFamily(v) } }, label = { Text(label) })
+                                }
+                            }
+                            Text("Font style", fontSize = 14.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                listOf("normal" to "Normal", "bold" to "Bold", "italic" to "Italic", "bold_italic" to "Bold+Italic").forEach { (v, label) ->
+                                    FilterChip(selected = fontStyle == v, onClick = { scope.launch { settingsDataStore.setFontStyle(v) } }, label = { Text(label) })
+                                }
+                            }
+                            Text("Background style", fontSize = 14.sp)
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                listOf("lens" to "Lens-like sampled", "white" to "White", "dark" to "Dark", "bubble" to "Cream bubble", "transparent" to "Transparent text").forEach { (v, label) ->
+                                    ScanModeOption(title = label, description = when (v) {
+                                        "lens" -> "Sample the original area color."
+                                        "transparent" -> "No background fill; outlined text."
+                                        else -> "Use a fixed translation background."
+                                    }, selected = backgroundStyle == v, onClick = { scope.launch { settingsDataStore.setBackgroundStyle(v) } })
+                                }
+                            }
+                            Text("Background transparency: " + (opacity * 100).toInt() + "%", fontSize = 14.sp)
+                            Slider(value = opacity, onValueChange = { value -> scope.launch { settingsDataStore.setOpacity(value) } }, valueRange = 0f..1f)
+                            Text("Text size: " + (fontScale * 100).toInt() + "%", fontSize = 14.sp)
+                            Slider(value = fontScale, onValueChange = { value -> scope.launch { settingsDataStore.setFontScale(value) } }, valueRange = 0.5f..2.5f)
                             Divider()
                             Text("Online target language", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                             Box {
