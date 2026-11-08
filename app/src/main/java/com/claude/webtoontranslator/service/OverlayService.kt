@@ -1275,18 +1275,12 @@ state = State.READY
         view.items = items
 
         serviceScope.launch {
-
-            view.overlayOpacity =
-                try {
-
-                    settingsDataStore
-                        .opacity
-                        .first()
-
-                } catch (_: Exception) {
-
-                    0.92f
-                }
+            view.overlayOpacity = try { settingsDataStore.opacity.first() } catch (_: Exception) { 0.92f }
+            view.fontScale = try { settingsDataStore.fontScale.first() } catch (_: Exception) { 1.0f }
+            view.fontFamily = try { settingsDataStore.fontFamily.first() } catch (_: Exception) { "default" }
+            view.fontStyle = try { settingsDataStore.fontStyle.first() } catch (_: Exception) { "normal" }
+            view.backgroundStyle = try { settingsDataStore.backgroundStyle.first() } catch (_: Exception) { "lens" }
+            view.invalidate()
         }
 
         val overlayType =
