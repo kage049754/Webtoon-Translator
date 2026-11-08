@@ -20,6 +20,7 @@ class SettingsDataStore(private val context: Context) {
         private val KEY_FONT_FAMILY = stringPreferencesKey("overlay_font_family")
         private val KEY_FONT_STYLE = stringPreferencesKey("overlay_font_style")
         private val KEY_BACKGROUND_STYLE = stringPreferencesKey("overlay_background_style")
+        private val KEY_THEME_MODE = stringPreferencesKey("app_theme_mode")
         private val KEY_ALWAYS_ON_TOP = booleanPreferencesKey("always_on_top")
         private val KEY_AUTO_HIDE_SECONDS = intPreferencesKey("auto_hide_seconds")
         private val KEY_MODELS_DOWNLOADED = booleanPreferencesKey("models_downloaded")
@@ -37,6 +38,10 @@ class SettingsDataStore(private val context: Context) {
         private val KEY_AREA_BOTTOM = intPreferencesKey("area_bottom")
         private val KEY_HAS_SAVED_AREA = booleanPreferencesKey("has_saved_area")
     }
+
+    /** system, light, or dark */
+    val themeMode: Flow<String> =
+        context.dataStore.data.map { it[KEY_THEME_MODE] ?: "system" }
 
     val opacity: Flow<Float> =
         context.dataStore.data.map { it[KEY_OPACITY] ?: 0.92f }
@@ -109,6 +114,10 @@ class SettingsDataStore(private val context: Context) {
 
     val hasSavedArea: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HAS_SAVED_AREA] ?: false }
+
+    suspend fun setThemeMode(value: String) {
+        context.dataStore.edit { it[KEY_THEME_MODE] = value.takeIf { it in setOf("system", "light", "dark") } ?: "system" }
+    }
 
     suspend fun setOpacity(value: Float) {
         context.dataStore.edit {
