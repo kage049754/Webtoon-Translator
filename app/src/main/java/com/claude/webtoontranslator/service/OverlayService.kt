@@ -124,7 +124,7 @@ class OverlayService : Service() {
     // translated while the floating control remains available for cancellation.
     private val liveScanHandler = Handler(Looper.getMainLooper())
     private var liveScanEnabled = false
-    private val liveScanRunnable = object : Runnable {
+    private val liveScanRunnable: Runnable = object : Runnable {
         override fun run() {
             if (!liveScanEnabled || state != State.SHOWING) return
             serviceScope.launch {
