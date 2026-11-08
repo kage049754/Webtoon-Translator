@@ -17,6 +17,9 @@ class SettingsDataStore(private val context: Context) {
     companion object {
         private val KEY_OPACITY = floatPreferencesKey("overlay_opacity")
         private val KEY_FONT_SCALE = floatPreferencesKey("overlay_font_scale")
+        private val KEY_FONT_FAMILY = stringPreferencesKey("overlay_font_family")
+        private val KEY_FONT_STYLE = stringPreferencesKey("overlay_font_style")
+        private val KEY_BACKGROUND_STYLE = stringPreferencesKey("overlay_background_style")
         private val KEY_ALWAYS_ON_TOP = booleanPreferencesKey("always_on_top")
         private val KEY_AUTO_HIDE_SECONDS = intPreferencesKey("auto_hide_seconds")
         private val KEY_MODELS_DOWNLOADED = booleanPreferencesKey("models_downloaded")
@@ -40,6 +43,15 @@ class SettingsDataStore(private val context: Context) {
 
     val fontScale: Flow<Float> =
         context.dataStore.data.map { it[KEY_FONT_SCALE] ?: 1.0f }
+
+    val fontFamily: Flow<String> =
+        context.dataStore.data.map { it[KEY_FONT_FAMILY] ?: "default" }
+
+    val fontStyle: Flow<String> =
+        context.dataStore.data.map { it[KEY_FONT_STYLE] ?: "normal" }
+
+    val backgroundStyle: Flow<String> =
+        context.dataStore.data.map { it[KEY_BACKGROUND_STYLE] ?: "lens" }
 
     val alwaysOnTop: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_ALWAYS_ON_TOP] ?: true }
@@ -105,9 +117,19 @@ class SettingsDataStore(private val context: Context) {
     }
 
     suspend fun setFontScale(value: Float) {
-        context.dataStore.edit {
-            it[KEY_FONT_SCALE] = value.coerceIn(0.5f, 3.0f)
-        }
+        context.dataStore.edit { it[KEY_FONT_SCALE] = value.coerceIn(0.5f, 2.5f) }
+    }
+
+    suspend fun setFontFamily(value: String) {
+        context.dataStore.edit { it[KEY_FONT_FAMILY] = value.takeIf { it in setOf("default", "sans", "serif", "monospace") } ?: "default" }
+    }
+
+    suspend fun setFontStyle(value: String) {
+        context.dataStore.edit { it[KEY_FONT_STYLE] = value.takeIf { it in setOf("normal", "bold", "italic", "bold_italic") } ?: "normal" }
+    }
+
+    suspend fun setBackgroundStyle(value: String) {
+        context.dataStore.edit { it[KEY_BACKGROUND_STYLE] = value.takeIf { it in setOf("lens", "white", "dark", "bubble", "transparent") } ?: "lens" }
     }
 
     suspend fun setAlwaysOnTop(value: Boolean) {
