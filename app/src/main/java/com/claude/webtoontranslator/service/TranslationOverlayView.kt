@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.view.View
 import kotlin.math.max
 import kotlin.math.min
@@ -34,6 +35,9 @@ class TranslationOverlayView(context: Context) : View(context) {
 
     var fontScale: Float = 1.0f
     var overlayOpacity: Float = 0.92f
+    var fontFamily: String = "default"
+    var fontStyle: String = "normal"
+    var backgroundStyle: String = "lens"
 
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -62,15 +66,32 @@ class TranslationOverlayView(context: Context) : View(context) {
             item.box.bottom + margin
         )
 
-        bgPaint.color = item.backgroundColor
+        val chosenBackground = when (backgroundStyle) {
+            "white" -> Color.WHITE
+            "dark" -> Color.rgb(28, 28, 30)
+            "bubble" -> Color.rgb(255, 245, 220)
+            "transparent" -> Color.TRANSPARENT
+            else -> item.backgroundColor
+        }
+        bgPaint.color = chosenBackground
         bgPaint.alpha = (overlayOpacity.coerceIn(0f, 1f) * 255).toInt()
-        canvas.drawRoundRect(rect, min(rect.width(), rect.height()) * 0.18f, min(rect.width(), rect.height()) * 0.18f, bgPaint)
+        val corner = when (backgroundStyle) {
+            "bubble" -> min(rect.width(), rect.height()) * 0.28f
+            "transparent" -> 0f
+            else -> min(rect.width(), rect.height()) * 0.16f
+        }
+        if (backgroundStyle != "transparent" && bgPaint.alpha > 0) canvas.drawRoundRect(rect, corner, corner, bgPaint)
 
-        val light = isColorLight(item.backgroundColor)
-        val foreground = if (light) Color.BLACK else Color.WHITE
+        val light = isColorLight(chosenBackground)
+        val foreground = if (backgroundStyle == "transparent") Color.WHITE else if (light) Color.BLACK else Color.WHITE
         textPaint.color = foreground
+        textPaint.typeface = Typeface.create(
+            when (fontFamily) { "sans" -> "sans-serif"; "serif" -> "serif"; "monospace" -> "monospace"; else -> "sans-serif" },
+            when (fontStyle) { "bold" -> Typeface.BOLD; "italic" -> Typeface.ITALIC; "bold_italic" -> Typeface.BOLD_ITALIC; else -> Typeface.NORMAL }
+        )
+        strokePaint.typeface = textPaint.typeface
         strokePaint.color = if (light) Color.WHITE else Color.BLACK
-        strokePaint.alpha = 110
+        strokePaint.alpha = 145
 
         val horizontalPadding = max(8f, rect.width() * 0.06f)
         val verticalPadding = max(5f, rect.height() * 0.08f)
