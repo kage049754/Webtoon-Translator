@@ -155,9 +155,9 @@ class TextRecognitionManager {
         val letters = compact.count { it.isLetter() }
         if (letters == 0) return false
         val cjk = compact.any {
-            it in '\\u3040'..'\\u30FF' ||
-                it in '\\uAC00'..'\\uD7AF' ||
-                it in '\\u4E00'..'\\u9FFF'
+            it in '\u3040'..'\u30FF' ||
+                it in '\uAC00'..'\uD7AF' ||
+                it in '\u4E00'..'\u9FFF'
         }
         val digits = compact.count { it.isDigit() }
         val symbols = compact.length - letters - digits
