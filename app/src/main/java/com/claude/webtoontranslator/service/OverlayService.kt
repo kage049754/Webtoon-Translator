@@ -120,6 +120,42 @@ class OverlayService : Service() {
     private var lastFrameHeight = 0
     private var lastOverlayItems: List<OverlayItem> = emptyList()
 
+    // Live mode re-scans at a modest interval so newly scrolled content is
+    // translated while the floating control remains available for cancellation.
+    private val liveScanHandler = Handler(Looper.getMainLooper())
+    private var liveScanEnabled = false
+    private val liveScanRunnable = object : Runnable {
+        override fun run() {
+            if (!liveScanEnabled || state != State.SHOWING) return
+            serviceScope.launch {
+                try {
+                    val capture = captureManager ?: return@launch
+                    val frame = capture.captureFrame() ?: return@launch
+                    val mode = settingsDataStore.scanMode.first()
+                    val scanData = prepareScanBitmap(frame, mode) ?: return@launch
+                    processBitmap(scanData.bitmap, scanData.offsetX, scanData.offsetY, frame)
+                } catch (_: Exception) {
+                    // Keep live mode resilient to transient capture/OCR failures.
+                } finally {
+                    if (liveScanEnabled && state == State.SHOWING) {
+                        liveScanHandler.postDelayed(this@liveScanRunnable, 1600L)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun startLiveTranslation() {
+        liveScanEnabled = true
+        liveScanHandler.removeCallbacks(liveScanRunnable)
+        liveScanHandler.postDelayed(liveScanRunnable, 900L)
+    }
+
+    private fun stopLiveTranslation() {
+        liveScanEnabled = false
+        liveScanHandler.removeCallbacks(liveScanRunnable)
+    }
+
     private val holdCloseHandler = Handler(Looper.getMainLooper())
     private var holdCloseTriggered = false
     private val closeByHoldRunnable = Runnable {
@@ -736,6 +772,7 @@ state = State.READY
             showOverlay(lastOverlayItems)
             setButtonLabel("⏹")
             state = State.SHOWING
+            startLiveTranslation()
             return
         }
 
@@ -846,6 +883,7 @@ state = State.READY
         setButtonLabel("⏹")
 
         state = State.SHOWING
+        startLiveTranslation()
     }
 
     private data class ChangeResult(val isUnchanged: Boolean, val region: Rect?)
@@ -1314,6 +1352,7 @@ state = State.READY
 
     private fun clearOverlay() {
 
+        stopLiveTranslation()
         removeOverlayView()
 
         setButtonLabel("🔍")
@@ -1429,6 +1468,7 @@ state = State.READY
     override fun onDestroy() {
 
         holdCloseHandler.removeCallbacks(closeByHoldRunnable)
+        stopLiveTranslation()
 
         removeAreaSelector()
 
